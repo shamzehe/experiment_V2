@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Persian-likeness Rating Task</title>
+
+    <!-- jsPsych core + CSS -->
+    <script src="https://unpkg.com/jspsych@8.2.3"></script>
+    <link href="https://unpkg.com/jspsych@8.2.3/css/jspsych.css" rel="stylesheet" />
+
+    <!-- Plugins -->
+    <script src="https://unpkg.com/@jspsych/plugin-instructions@2.1.0"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-audio-slider-response@2.1.1"></script>
+  </head>
+
+  <body></body>
+
+  <script>
+    const jsPsych = initJsPsych({
+      on_finish: () => {
+        // for debugging: shows data at the end
+        jsPsych.data.displayData();
+      }
+    });
+
+    const timeline = [];
+
+    // -----------------------
+    // Instructions (3 pages)
+    // -----------------------
+    timeline.push({
+      type: jsPsychInstructions,
+      pages: [
+        `
+          <h2>Introduction</h2>
+          <p>You will hear a series of made-up Persian words, one at a time. These words do not exist in Persian.</p>
+          <p>Your task is to rate each word how Persian-like it is: how much it sounds like a normal Persian word that you simply never learned before.</p>
+          <p>There are no right or wrong answers. We want your honest opinion.</p>
+        `,
+        `
+          <h2>What you will do</h2>
+          <p>There is a mini test task that helps you learn how to do the task before you move to the main task.</p>
+          <p>Focus on how the word sounds. Using the five labeled slider below, you will rate each word from <b>1</b> to <b>5</b>:</p>
+          <p><b>5</b>: perfectly good, normal-sounding Persian word<br>
+             <b>1</b>: awful or impossible-sounding Persian word</p>
+          <p>After you’ve rated the word, press <b>Next</b> to continue.</p>
+        `,
+        `
+          <h2>Things to keep in mind</h2>
+          <p>Focus on how Persian-like each word is, not whether it actually exists.</p>
+          <p>We monitor responses to make sure you are attentive, so there will be simple attention checks along the way.</p>
+        `
+      ],
+      show_clickable_nav: true,
+      button_label_next: "Next",
+      button_label_previous: "Back"
+    });
+
+    // -----------------------
+    // Experiment trials (.wav + slider)
+    // -----------------------
+    const stimuli = [
+      { id: "stim001", audio: "audio/stim001.wav" },
+      { id: "stim002", audio: "audio/stim002.wav" },
+      { id: "stim003", audio: "audio/stim003.wav" },
+      // add more here...
+    ];
+
+    // Build the trials
+    stimuli.forEach((s) => {
+      timeline.push({
+        type: jsPsychAudioSliderResponse,
+        stimulus: s.audio,
+
+        // slider: 1..5
+        min: 1,
+        max: 5,
+        step: 1,
+        labels: ["1", "2", "3", "4", "5"],
+
+        require_movement: true,
+        button_label: "Next",
+
+        prompt: `
+          <p><b>How Persian-like does this word sound?</b></p>
+          <p>1 = impossible, 5 = perfectly normal</p>
+        `,
+
+        data: {
+          task: "rating",
+          trial_id: s.id,
+          audio_file: s.audio
+        }
+      });
+    });
+
+    // Run everything
+    jsPsych.run(timeline);
+  </script>
+</html>

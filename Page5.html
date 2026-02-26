@@ -1,0 +1,202 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Persian-likeness Rating Task</title>
+
+    <!-- jsPsych core + CSS -->
+    <script src="https://unpkg.com/jspsych@8.2.3"></script>
+    <link href="https://unpkg.com/jspsych@8.2.3/css/jspsych.css" rel="stylesheet" />
+
+    <!-- Plugins -->
+    <script src="https://unpkg.com/@jspsych/plugin-instructions@2.1.0"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-html-button-response@2.1.0"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-audio-slider-response@2.1.1"></script>
+  </head>
+
+  <body></body>
+
+  <script>
+    const jsPsych = initJsPsych({
+      on_finish: () => jsPsych.data.displayData()
+    });
+
+    const timeline = [];
+
+    // ---------------------------
+    // Instructions (3 pages)
+    // ---------------------------
+    timeline.push({
+      type: jsPsychInstructions,
+      pages: [
+        `
+          <h2>Introduction</h2>
+          <p>You will hear a series of made-up Persian words, one at a time. These words do not exist in Persian.</p>
+          <p>Your task is to rate each word how Persian-like it is: how much it sounds like a normal Persian word that you simply never learned before.</p>
+          <p>There are no right or wrong answers. We want your honest opinion.</p>
+        `,
+        `
+          <h2>What you will do</h2>
+          <p>There is a mini test task that helps you learn how to do the task before you move to the main task.</p>
+          <p>Focus on how the word sounds. Using the five labeled slider below, you will rate each word from <b>1</b> to <b>5</b>:</p>
+          <p><b>5</b>: perfectly good, normal-sounding Persian word<br>
+             <b>1</b>: awful or impossible-sounding Persian word</p>
+          <p>After you’ve rated the word, press <b>Next</b> to continue.</p>
+        `,
+        `
+          <h2>Things to keep in mind</h2>
+          <p>Focus on how Persian-like each word is, not whether it actually exists.</p>
+          <p>We monitor responses to make sure you are attentive, so there will be simple attention checks along the way.</p>
+        `
+      ],
+      show_clickable_nav: true,
+      button_label_next: "Next",
+      button_label_previous: "Back"
+    });
+
+    // ---------------------------
+    // Start practice page
+    // ---------------------------
+    timeline.push({
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <h2>Practice</h2>
+        <p>You will first complete a short practice block to get familiar with the task.</p>
+        <p>Please use headphones if possible.</p>
+      `,
+      choices: ["Start practice"]
+    });
+
+    // ---------------------------
+    // EDIT THESE FILENAMES
+    // ---------------------------
+    const practiceStimuli = [
+      { id: "practice_001", audio: "audio/practice_001.wav" },
+      { id: "practice_002", audio: "audio/practice_002.wav" },
+      { id: "practice_003", audio: "audio/practice_003.wav" },
+      { id: "practice_004", audio: "audio/practice_004.wav" },
+      { id: "practice_005", audio: "audio/practice_005.wav" }
+    ];
+
+    const mainStimuli = [
+      { id: "main_001", audio: "audio/main_001.wav" },
+      { id: "main_002", audio: "audio/main_002.wav" },
+      { id: "main_003", audio: "audio/main_003.wav" }
+      // add more...
+    ];
+
+    // ---------------------------
+    // Trial builder (Audio + Slider + Replay)
+    // ---------------------------
+    function makeRatingTrial(s, phaseLabel) {
+      return {
+        type: jsPsychAudioSliderResponse,
+
+        // IMPORTANT: turn off WebAudio so we have a real <audio> element to replay
+        use_webaudio: false,
+
+        stimulus: s.audio,
+
+        min: 1,
+        max: 5,
+        step: 1,
+        labels: ["1", "2", "3", "4", "5"],
+
+        response_allowed_while_playing: false,
+        require_movement: true,
+        button_label: "Next",
+
+        prompt: `
+          <div style="margin-top: 12px; margin-bottom: 10px;">
+            <button id="replay-btn" type="button">Replay 🔁</button>
+            <span id="replay-status" style="margin-left: 10px; font-size: 0.95em;"></span>
+          </div>
+
+          <p><b>How Persian-like does this word sound?</b></p>
+          <p>1 = impossible, 5 = perfectly normal</p>
+        `,
+
+        on_load: () => {
+          // Now this WILL exist because use_webaudio:false
+          const audioEl =
+            document.querySelector("#jspsych-content audio") ||
+            document.querySelector("audio");
+
+          const replayBtn = document.getElementById("replay-btn");
+          const statusEl = document.getElementById("replay-status");
+
+          if (!audioEl || !replayBtn) {
+            console.warn("Replay setup failed: audio element not found.");
+            return;
+          }
+
+          const setPlayingUI = (isPlaying) => {
+            replayBtn.disabled = isPlaying;
+            if (statusEl) statusEl.textContent = isPlaying ? "Playing…" : "";
+          };
+
+          audioEl.addEventListener("play", () => setPlayingUI(true));
+          audioEl.addEventListener("ended", () => setPlayingUI(false));
+          audioEl.addEventListener("pause", () => {
+            if (audioEl.currentTime < audioEl.duration) setPlayingUI(false);
+          });
+
+          replayBtn.addEventListener("click", () => {
+            audioEl.pause();
+            audioEl.currentTime = 0;
+
+            const p = audioEl.play(); // returns a Promise in modern browsers
+            if (p && typeof p.catch === "function") {
+              p.catch((e) => console.warn("Replay play() blocked:", e));
+            }
+          });
+        },
+
+        data: {
+          task: "rating",
+          phase: phaseLabel,
+          trial_id: s.id,
+          audio_file: s.audio
+        }
+      };
+    }
+
+    // ---------------------------
+    // Practice trials
+    // ---------------------------
+    practiceStimuli.forEach((s) => timeline.push(makeRatingTrial(s, "practice")));
+
+    // ---------------------------
+    // Transition to main
+    // ---------------------------
+    timeline.push({
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <h2>Main task</h2>
+        <p>Practice is finished. Press the button below to start the main task.</p>
+      `,
+      choices: ["Start main task"]
+    });
+
+    // ---------------------------
+    // Main trials (randomized)
+    // ---------------------------
+    jsPsych.randomization.shuffle(mainStimuli).forEach((s) => {
+      timeline.push(makeRatingTrial(s, "main"));
+    });
+
+    // ---------------------------
+    // End page
+    // ---------------------------
+    timeline.push({
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <h2>Finished</h2>
+        <p>Thank you! You have completed the task.</p>
+      `,
+      choices: ["Finish"]
+    });
+
+    jsPsych.run(timeline);
+  </script>
+</html>

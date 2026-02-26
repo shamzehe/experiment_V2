@@ -1,0 +1,965 @@
+<!doctype html>
+<html>
+  <style>
+  :root{
+    --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial;
+    --fs: 15px;         /* سایز اصلی همه متن‌ها */
+    --lh: 1.25;
+    --text: #111;
+    --muted: #555;
+    --border: #d6d6d6;
+    --radius: 8px;
+  }
+
+  /* 1) ریست پایه برای همه چیز */
+  html, body {
+    font-family: var(--font) !important;
+    font-size: var(--fs) !important;
+    line-height: var(--lh) !important;
+    color: var(--text) !important;
+  }
+
+  /* تقریبا هر چیزی که متن دارد */
+  body *:not(svg):not(path) {
+    font-family: var(--font) !important;
+  }
+
+  /* 2) همه متن‌ها یک سایز */
+  body, p, span, div, label, legend,
+  table, thead, tbody, tfoot, tr, th, td,
+  ul, ol, li,
+  h1, h2, h3, h4, h5, h6,
+  small, strong, em, b,
+  button, input, select, textarea {
+    font-size: var(--fs) !important;
+    line-height: var(--lh) !important;
+    color: var(--text) !important;
+  }
+
+  /* 3) اگر جایی h* بزرگ می‌شود، خنثی کن */
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 600 !important;
+    margin: 0 0 10px 0 !important;
+  }
+
+  /* 4) ورودی‌ها مینیمال و یکدست */
+  input[type="text"], input[type="number"], input[type="date"], select, textarea {
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius) !important;
+    padding: 10px 12px !important;
+    box-sizing: border-box !important;
+    background: #fff !important;
+  }
+
+  /* 5) جدول زبان‌ها یکدست */
+  table { border-collapse: collapse !important; }
+  th, td { padding: 10px 12px !important; }
+
+  /* 6) رادیوها/چک‌باکس‌ها کنار متن هم‌تراز */
+  input[type="radio"], input[type="checkbox"] {
+    transform: translateY(1px);
+  }
+
+  /* 7) تک‌خطی (اختیاری): اگر می‌خوای نوشته‌ها تا حد ممکن یک خط بمانند */
+  .one-line, label, legend {
+    white-space: nowrap;
+  }
+
+  /* 8) Selected: ... هم یکسان */
+  .lp-value, .lp-value span {
+    font-size: var(--fs) !important;
+  }
+</style>
+  <head>
+
+    <meta charset="utf-8" />
+    <title>Persian-likeness Rating Task</title>
+
+    <!-- jsPsych core + CSS -->
+    <script src="https://unpkg.com/jspsych@8.2.3"></script>
+    <link href="https://unpkg.com/jspsych@8.2.3/css/jspsych.css" rel="stylesheet" />
+
+    <!-- Plugins -->
+    <script src="https://unpkg.com/@jspsych/plugin-instructions@2.1.0"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-html-button-response@2.1.0"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-audio-slider-response@2.1.1"></script>
+  </head>
+
+  <body></body>
+
+  <script>
+    // ---------------------------------
+    // Helper: download a text file in the browser
+    // ---------------------------------
+    function downloadTextFile(filename, text) {
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    // Used for filename
+    let participantName = "participant";
+
+    // ---------------------------------
+    // Initialize
+    // ---------------------------------
+    const jsPsych = initJsPsych({
+      use_webaudio: false,
+      on_finish: () => {
+        const rating = jsPsych.data.get().filter({ task: "rating" });
+
+        const header = ["name", "phase", "trial_id", "audio_file", "response", "rt"].join("\t");
+        const rows = rating.values().map((d) =>
+          [
+            participantName,
+            d.phase,
+            d.trial_id,
+            d.audio_file,
+            d.response,
+            d.rt
+          ].join("\t")
+        );
+
+        const textOut = [header, ...rows].join("\n");
+
+        const safeName = (participantName || "participant")
+          .trim()
+          .replace(/[\\/:*?"<>|]+/g, "_")
+          .replace(/\s+/g, "_");
+
+        downloadTextFile(`${safeName}.txt`, textOut);
+
+        // optional debug
+        jsPsych.data.displayData();
+      }
+    });
+
+    const timeline = [];
+
+    // ---------------------------------
+    // Helpers for LEAP-Q page
+    // ---------------------------------
+    function val(id) {
+      return (document.getElementById(id)?.value ?? "").toString().trim();
+    }
+    function getChecked(name) {
+      return (document.querySelector(`input[name="${name}"]:checked`)?.value || "").trim();
+    }
+    function asNumber(x) {
+      const n = Number(x);
+      return Number.isFinite(n) ? n : NaN;
+    }
+    function sumPercent(ids) {
+      let s = 0;
+      for (const id of ids) {
+        const n = asNumber(val(id));
+        if (!Number.isFinite(n)) return NaN;
+        s += n;
+      }
+      return s;
+    }
+    function makeOptions0to10() {
+      let out = `<option value="">Select…</option>`;
+      for (let i = 0; i <= 10; i++) out += `<option value="${i}">${i}</option>`;
+      return out;
+    }
+    const OPT_0_10 = makeOptions0to10();
+
+    // ---------------------------------
+    // Pages: Thank you -> LEAP-Q -> Colors -> Intro -> etc
+    // Back/Next across all these pages
+    // ---------------------------------
+    timeline.push({
+      type: jsPsychInstructions,
+      pages: [
+        // 0) Thank you
+        `
+          <div style="max-width:760px; margin: 0 auto; text-align:left;">
+            <h2>Thank you for participating!</h2>
+            <p>In this study, you will listen to a series of made-up Persian words and rate how Persian-like they sound.</p>
+            <p>Please use headphones if possible and complete the task in a quiet environment.</p>
+            <p>Click <b>Next</b> to continue.</p>
+          </div>
+        `,
+
+        // 0) Sound Check
+        `
+          <div style="max-width:760px; margin: 0 auto; text-align:left;">
+            <h2>Sound Check</h2>
+            <!-- Word listening question: play audio + choose correct option -->
+<div class="question-block" id="q-word-1" style="margin: 18px 0;">
+  <div style="font-weight:600; margin-bottom:10px;">
+    (Q) Listen to the word and choose the correct option:
+  </div>
+
+  <style>
+    .wq-wrap { max-width: 680px; margin: 0 auto; }
+    .wq-row { margin: 12px 0; }
+    .wq-options { display: grid; gap: 10px; margin-top: 10px; }
+    .wq-option { display: flex; align-items: center; gap: 10px; }
+    .wq-audio { width: 100%; }
+  </style>
+
+  <div class="wq-wrap">
+    <!-- Audio player (replace src with your audio file) -->
+    <div class="wq-row">
+      <audio class="wq-audio" controls preload="auto">
+        <source src="audio/baradar.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+      </audio>
+    </div>
+
+    <!-- Options -->
+    <div class="wq-row wq-options" role="radiogroup" aria-label="Choose the correct word">
+      <label class="wq-option">
+        <input type="radio" name="q_word_1_answer" value="برا" required>
+        برا
+      </label>
+
+      <label class="wq-option">
+        <input type="radio" name="q_word_1_answer" value="برادر" required>
+        برادر
+      </label>
+
+      <label class="wq-option">
+        <input type="radio" name="q_word_1_answer" value="براد" required>
+        براد
+      </label>
+
+      <label class="wq-option">
+        <input type="radio" name="q_word_1_answer" value="ادر" required>
+        ادر
+      </label>
+    </div>
+  </div>
+</div>
+          </div>
+        `,
+
+
+        
+        // 1) LEAP-Q (participant info)
+        `
+          <style>
+            .leap-wrap{
+              max-width: 820px;
+              margin: 0 auto;
+              text-align: left;
+              line-height: 1.35;
+            }
+            .leap-wrap h3{ margin: 6px 0 10px 0; }
+            .leap-row{
+              display: grid;
+              grid-template-columns: 220px 1fr;
+              gap: 10px;
+              align-items: center;
+              margin: 8px 0;
+            }
+            .leap-input{
+              font-size: 16px;
+              padding: 6px 8px;
+              width: min(420px, 95%);
+              box-sizing: border-box;
+            }
+            .leap-input-small{
+              font-size: 16px;
+              padding: 6px 8px;
+              width: 140px;
+              box-sizing: border-box;
+            }
+            .leap-select{
+              font-size: 16px;
+              padding: 6px 8px;
+              width: min(220px, 95%);
+              box-sizing: border-box;
+            }
+            .leap-block{
+              border-top: 1px solid #ddd;
+              padding-top: 14px;
+              margin-top: 14px;
+            }
+            .leap-table{
+              width: 100%;
+              border-collapse: collapse;
+              margin: 8px 0 12px 0;
+            }
+            .leap-table th, .leap-table td{
+              border: 1px solid #ddd;
+              padding: 6px 8px;
+              text-align: left;
+              vertical-align: top;
+            }
+            .leap-table th{
+              background: #f7f7f7;
+              font-weight: 600;
+            }
+            .leap-radio{
+              display: inline-block;
+              line-height: 1.7;
+            }
+            .leap-error{
+              color: #b00020;
+              margin-top: 12px;
+              display: none;
+              font-size: 14px;
+              padding: 10px;
+              border: 1px solid rgba(176,0,32,.25);
+              background: rgba(176,0,32,.04);
+            }
+            .hint{
+              color:#444;
+              font-size: 14px;
+              margin: 4px 0 10px 0;
+            }
+          </style>
+
+          <div class="leap-wrap">
+            
+            <div class="leap-row">
+              <div>First Name</div>
+              <div><input id="first_name" class="leap-input" type="text" data-required="true" data-label="First Name"></div>
+            </div>
+
+            <div class="leap-row">
+              <div>Age</div>
+              <div><input id="age" class="leap-input-small" type="number" min="1" max="120" data-required="true" data-label="Age"></div>
+            </div>
+
+            <div class="leap-row">
+              <div>Sex</div>
+              <div class="leap-radio" data-required-group="true" data-label="Sex">
+                <label><input type="radio" name="sex" value="Male"> Male</label><br/>
+                <label><input type="radio" name="sex" value="Female"> Female</label><br/>
+                <label><input type="radio" name="sex" value="Non-binary"> Non-binary</label>
+
+              </div>
+            </div>
+
+            <div class="leap-block">
+              <div><b>(1) Please list all the languages you speak:</b></div>
+              <table class="leap-table">
+                <tr><td>1</td><td><input id="dom_1" class="leap-input" type="text" data-required="true" data-label="Dominance language 1"></td></tr>
+                <tr><td>2</td><td><input id="dom_2" class="leap-input" type="text" data-required="true" data-label="Dominance language 2"></td></tr>
+                <tr><td>3</td><td><input id="dom_3" class="leap-input" type="text" data-required="true" data-label="Dominance language 3"></td></tr>
+                <tr><td>4</td><td><input id="dom_4" class="leap-input" type="text" data-required="true" data-label="Dominance language 4"></td></tr>
+                <tr><td>5</td><td><input id="dom_5" class="leap-input" type="text" data-required="true" data-label="Dominance language 5"></td></tr>
+              </table>
+            </div>
+
+            <div class="leap-block">
+             
+<!-- (2) Language proficiency sliders -->
+<div class="question-block" id="q2-language-proficiency" style="margin: 18px 0;">
+  <div style="font-weight: 600; margin-bottom: 8px;">
+    (2) Please rate your proficiency for each language (1–5):
+  </div>
+
+  <style>
+    .lp-row { margin: 14px 0; }
+
+    /* عنوان + مقدار انتخاب‌شده */
+    .lp-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 6px;
+      max-width: 520px;   /* هم‌عرض با اسلایدر */
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .lp-label { font-weight: 600; }
+    .lp-value { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+
+    /* خود اسلایدر وسط */
+    .lp-slider {
+      width: 100%;
+      max-width: 520px;
+      display: block;
+      margin: 0 auto;     /* وسط چین */
+    }
+
+    /* مقیاس زیر اسلایدر هم وسط و هم‌عرض با اسلایدر */
+    .lp-scale {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #444;
+      margin-top: 8px;
+      line-height: 1.2;
+      max-width: 520px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .lp-scale span { text-align: center; width: 20%; }
+  </style>
+
+  <div class="lp-row">
+    <div class="lp-header">
+      <div class="lp-label">Language 1</div>
+      <div class="lp-value">Selected: <span id="lp1_val">3</span></div>
+    </div>
+    <input class="lp-slider" type="range" id="lp1" name="language1_proficiency" min="1" max="5" step="1" value="3"
+           oninput="document.getElementById('lp1_val').textContent = this.value;">
+  </div>
+
+  <div class="lp-row">
+    <div class="lp-header">
+      <div class="lp-label">Language 2</div>
+      <div class="lp-value">Selected: <span id="lp2_val">3</span></div>
+    </div>
+    <input class="lp-slider" type="range" id="lp2" name="language2_proficiency" min="1" max="5" step="1" value="3"
+           oninput="document.getElementById('lp2_val').textContent = this.value;">
+  </div>
+
+  <div class="lp-row">
+    <div class="lp-header">
+      <div class="lp-label">Language 3</div>
+      <div class="lp-value">Selected: <span id="lp3_val">3</span></div>
+    </div>
+    <input class="lp-slider" type="range" id="lp3" name="language3_proficiency" min="1" max="5" step="1" value="3"
+           oninput="document.getElementById('lp3_val').textContent = this.value;">
+  </div>
+
+  <div class="lp-row">
+    <div class="lp-header">
+      <div class="lp-label">Language 4</div>
+      <div class="lp-value">Selected: <span id="lp4_val">3</span></div>
+    </div>
+    <input class="lp-slider" type="range" id="lp4" name="language4_proficiency" min="1" max="5" step="1" value="3"
+           oninput="document.getElementById('lp4_val').textContent = this.value;">
+  </div>
+
+  <div class="lp-row">
+    <div class="lp-header">
+      <div class="lp-label">Language 5</div>
+      <div class="lp-value">Selected: <span id="lp5_val">3</span></div>
+    </div>
+    <input class="lp-slider" type="range" id="lp5" name="language5_proficiency" min="1" max="5" step="1" value="3"
+           oninput="document.getElementById('lp5_val').textContent = this.value;">
+  </div>
+
+  <div class="lp-scale" aria-hidden="true">
+    <span><b>1</b><br>Native</span>
+    <span><b>2</b><br>Fluent</span>
+    <span><b>3</b><br>Proficient</span>
+    <span><b>4</b><br>Intermediate</span>
+    <span><b>5</b><br>Beginner</span>
+  </div>
+</div>
+<!-- / (2) Language proficiency sliders -->
+
+              <div class="leap-row">
+                <div><b>(3) Highest education level</b></div>
+                <div class="leap-radio" data-required-group="true" data-label="Highest education level">
+                  <label><input type="radio" name="edu_level" value="Professional Training"> Undergraduate</label><br/>
+                  <label><input type="radio" name="edu_level" value="Masters"> Masters</label><br/>
+                  <label><input type="radio" name="edu_level" value="Ph.D./M.D./J.D."> Ph.D.</label><br/>
+                  <label>
+                    <input type="radio" name="edu_level" value="Other"> Other:
+                    <input id="edu_other" class="leap-input" type="text" placeholder="Specify" data-required="true" data-label="Education level (Other) text">
+                  </label>
+                </div>
+              </div>
+            </div>
+
+<div class="question-block" id="q4-english-country-immigration" style="margin: 18px 0;">
+  <div style="font-weight: 600; margin-bottom: 10px;">
+    (4) English-speaking country & immigration
+  </div>
+
+  <style>
+    .ei-wrap { max-width: 520px; margin: 0 auto; }
+    .ei-row { margin: 12px 0; }
+    .ei-label { display: block; font-weight: 600; margin-bottom: 6px; }
+    .ei-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #cfcfcf;
+      border-radius: 8px;
+      box-sizing: border-box;
+      font-size: 14px;
+    }
+    .ei-radio-group { display: flex; gap: 22px; align-items: center; }
+    .ei-radio-item { display: flex; align-items: center; gap: 8px; }
+  </style>
+
+  <div class="ei-wrap">
+    <!-- (4.a) Live in English-speaking country? -->
+    <div class="ei-row">
+      <div class="ei-label">(4.a) Do you currently live in an English speaking country?</div>
+      <div class="ei-radio-group" role="radiogroup" aria-label="Live in English speaking country">
+        <label class="ei-radio-item">
+          <input type="radio" name="q4_live_english_country" value="Yes" required>
+          Yes
+        </label>
+        <label class="ei-radio-item">
+          <input type="radio" name="q4_live_english_country" value="No" required>
+          No
+        </label>
+      </div>
+    </div>
+
+    <!-- (4.b) Years lived in English-speaking country -->
+    <div class="ei-row">
+      <label class="ei-label" for="q4_years_english_country">
+        (4.b) Please enter number of years that you lived in an english speaking country?
+      </label>
+      <input class="ei-input" type="number" id="q4_years_english_country" name="q4_years_english_country"
+             min="0" max="120" step="0.5" placeholder="e.g., 3.5" required>
+    </div>
+
+    <!-- (4.c) Immigration date -->
+    <div class="ei-row">
+      <label class="ei-label" for="q4_immigration_date">(4.c) When did you immigrate?</label>
+      <input class="ei-input" type="date" id="q4_immigration_date" name="q4_immigration_date">
+    </div>
+  </div>
+</div>
+<!-- / (4) English-speaking country & immigration -->
+        `,
+
+        // 2) Colors page (required)
+        `
+          <style>
+            .colors-wrap{
+              max-width: 760px;
+              margin: 0 auto;
+              text-align: left;
+            }
+            .colors-textarea{
+              width: min(680px, 95%);
+              height: 180px;
+              font-size: 16px;
+              padding: 10px;
+              box-sizing: border-box;
+            }
+            .colors-error{
+              color:#b00020;
+              margin-top:10px;
+              display:none;
+              font-size:14px;
+              padding: 10px;
+              border: 1px solid rgba(176,0,32,.25);
+              background: rgba(176,0,32,.04);
+            }
+          </style>
+
+          <div class="colors-wrap">
+            <h2>Verbal Fluency</h2> 
+            <p><b>Say as many vegetables in English as you can.</b></p>
+            <p>Enter one per line or separated by commas.</p>
+
+            <textarea id="colors_english" class="colors-textarea"
+              placeholder="e.g., red&#10;blue&#10;green"></textarea>
+
+            <div id="colors_error" class="colors-error">
+              Please type at least one color to continue.
+            </div>
+
+            <p style="margin-top:16px;">Click <b>Next</b> to continue.</p>
+          </div>
+        `,
+
+        // 3) Introduction
+        `
+          <div style="max-width:760px; margin: 0 auto; text-align:left;">
+            <h2>Introduction</h2>
+            <p>You will hear a series of made-up Persian words, one at a time. These words do not exist in Persian.</p>
+            <p>Your task is to rate each word how Persian-like it is: how much it sounds like a normal Persian word that you simply never learned before.</p>
+            <p>There are no right or wrong answers. We want your honest opinion.</p>
+          </div>
+        `,
+
+        // 4) What you will do
+        `
+          <div style="max-width:760px; margin: 0 auto; text-align:left;">
+            <h2>What you will do</h2>
+            <p>There is a practice task that helps you learn how to do the task before you move to the main task.</p>
+            <p>Focus on how the word sounds. Using the five labeled slider below, you will rate each word from <b>1</b> to <b>5</b>:</p>
+            <p><b>5</b>: perfectly good, normal-sounding Persian word<br>
+               <b>1</b>: awful or impossible-sounding Persian word</p>
+            <p>After you’ve rated the word, press <b>Next</b> to continue.</p>
+          </div>
+        `,
+
+        // 5) Keep in mind
+        `
+          <div style="max-width:760px; margin: 0 auto; text-align:left;">
+            <h2>Things to keep in mind</h2>
+            <p>Focus on how Persian-like each word is, not whether it actually exists.</p>
+            <p>We monitor responses to make sure you are attentive, so there will be simple attention checks along the way.</p>
+          </div>
+        `
+      ],
+      show_clickable_nav: true,
+      allow_backward: true,
+      button_label_next: "Next",
+      button_label_previous: "Back",
+
+      on_load: () => {
+        const nextBtn = document.querySelector("#jspsych-instructions-next");
+        if (!nextBtn) return;
+
+        // Live percent totals (LEAP-Q page)
+        const updateTotals = () => {
+          const exp = sumPercent(["exp_pct_1","exp_pct_2","exp_pct_3","exp_pct_4","exp_pct_5"]);
+          const read = sumPercent(["read_pct_1","read_pct_2","read_pct_3","read_pct_4","read_pct_5"]);
+          const spk = sumPercent(["spk_pct_1","spk_pct_2","spk_pct_3","spk_pct_4","spk_pct_5"]);
+
+          const expEl = document.getElementById("exp_total");
+          const readEl = document.getElementById("read_total");
+          const spkEl = document.getElementById("spk_total");
+
+          if (expEl) expEl.textContent = Number.isFinite(exp) ? `${exp}%` : "—";
+          if (readEl) readEl.textContent = Number.isFinite(read) ? `${read}%` : "—";
+          if (spkEl) spkEl.textContent = Number.isFinite(spk) ? `${spk}%` : "—";
+        };
+
+        // Attach listeners if fields exist (safe across pages)
+        [
+          "exp_pct_1","exp_pct_2","exp_pct_3","exp_pct_4","exp_pct_5",
+          "read_pct_1","read_pct_2","read_pct_3","read_pct_4","read_pct_5",
+          "spk_pct_1","spk_pct_2","spk_pct_3","spk_pct_4","spk_pct_5"
+        ].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.addEventListener("input", updateTotals);
+        });
+        updateTotals();
+
+        // Validation before Next
+        nextBtn.addEventListener(
+          "click",
+          (e) => {
+            const container = document.querySelector(".jspsych-instructions");
+            const pageIndex = container ? Number(container.getAttribute("data-current-page")) : null;
+
+            // Page 1: LEAP-Q validation
+            if (pageIndex === 1) {
+              const err = document.getElementById("leap_error");
+              const missing = [];
+
+              // required single fields
+              const requiredFields = Array.from(document.querySelectorAll('[data-required="true"]'));
+              for (const el of requiredFields) {
+                const label = el.getAttribute("data-label") || el.id || "This field";
+                const v = (el.value ?? "").toString().trim();
+                if (v === "") missing.push(label);
+              }
+
+              // required sex radio
+              if (!getChecked("sex")) missing.push("Sex");
+
+              // required education level radio
+              if (!getChecked("edu_level")) missing.push("Highest education level");
+
+              // disability: require at least one checked
+              const disIds = ["dis_vision","dis_hearing","dis_language","dis_learning","dis_none"];
+              const anyDis = disIds.some(id => document.getElementById(id)?.checked);
+              if (!anyDis) missing.push("Disability selection");
+
+              // percent sums must be 100
+              const percentErrors = [];
+              const exp = sumPercent(["exp_pct_1","exp_pct_2","exp_pct_3","exp_pct_4","exp_pct_5"]);
+              const read = sumPercent(["read_pct_1","read_pct_2","read_pct_3","read_pct_4","read_pct_5"]);
+              const spk = sumPercent(["spk_pct_1","spk_pct_2","spk_pct_3","spk_pct_4","spk_pct_5"]);
+
+              if (!(Number.isFinite(exp) && Math.round(exp) === 100)) percentErrors.push("Exposure percentages must sum to 100%");
+              if (!(Number.isFinite(read) && Math.round(read) === 100)) percentErrors.push("Reading-choice percentages must sum to 100%");
+              if (!(Number.isFinite(spk) && Math.round(spk) === 100)) percentErrors.push("Speaking-choice percentages must sum to 100%");
+
+              if (missing.length > 0 || percentErrors.length > 0) {
+                e.stopImmediatePropagation();
+                e.preventDefault();
+
+                let html = "";
+                if (missing.length > 0) {
+                  html += `<b>Please complete all required fields:</b><br>` + missing.map(m => `• ${m}`).join("<br>");
+                }
+                if (percentErrors.length > 0) {
+                  if (html) html += `<br><br>`;
+                  html += `<b>Percent totals:</b><br>` + percentErrors.map(p => `• ${p}`).join("<br>");
+                }
+
+                if (err) {
+                  err.innerHTML = html;
+                  err.style.display = "block";
+                }
+
+                // focus first missing required field if possible
+                const firstMissing = requiredFields.find(el => ((el.value ?? "").toString().trim() === ""));
+                if (firstMissing) firstMissing.focus();
+                return;
+              } else {
+                if (err) err.style.display = "none";
+              }
+            }
+
+            // Page 2: Colors page validation
+            if (pageIndex === 2) {
+              const t = document.getElementById("colors_english");
+              const err = document.getElementById("colors_error");
+              const ans = (t?.value || "").trim();
+
+              if (!ans) {
+                e.stopImmediatePropagation();
+                e.preventDefault();
+                if (err) err.style.display = "block";
+                if (t) t.focus();
+                return;
+              } else {
+                if (err) err.style.display = "none";
+              }
+            }
+          },
+          true
+        );
+      },
+
+      on_finish: () => {
+        // Save LEAP-Q
+        const fn = val("first_name");
+        const ln = val("last_name");
+        participantName = (fn && ln) ? `${fn}_${ln}` : (fn || ln || "participant");
+
+        const leapq = {
+          first_name: fn,
+          last_name: ln,
+          today_date: val("today_date"),
+          age: val("age"),
+          dob: val("dob"),
+          sex: getChecked("sex"),
+
+          dominance_languages: [val("dom_1"),val("dom_2"),val("dom_3"),val("dom_4"),val("dom_5")],
+          acquisition_languages: [val("acq_1"),val("acq_2"),val("acq_3"),val("acq_4"),val("acq_5")],
+
+          exposure: [
+            { language: val("exp_lang_1"), percent: val("exp_pct_1") },
+            { language: val("exp_lang_2"), percent: val("exp_pct_2") },
+            { language: val("exp_lang_3"), percent: val("exp_pct_3") },
+            { language: val("exp_lang_4"), percent: val("exp_pct_4") },
+            { language: val("exp_lang_5"), percent: val("exp_pct_5") }
+          ],
+          read_choice: [
+            { language: val("read_lang_1"), percent: val("read_pct_1") },
+            { language: val("read_lang_2"), percent: val("read_pct_2") },
+            { language: val("read_lang_3"), percent: val("read_pct_3") },
+            { language: val("read_lang_4"), percent: val("read_pct_4") },
+            { language: val("read_lang_5"), percent: val("read_pct_5") }
+          ],
+          speak_choice: [
+            { language: val("spk_lang_1"), percent: val("spk_pct_1") },
+            { language: val("spk_lang_2"), percent: val("spk_pct_2") },
+            { language: val("spk_lang_3"), percent: val("spk_pct_3") },
+            { language: val("spk_lang_4"), percent: val("spk_pct_4") },
+            { language: val("spk_lang_5"), percent: val("spk_pct_5") }
+          ],
+
+          cultures: [
+            { culture: val("cult_1"), rating: val("cult_rate_1") },
+            { culture: val("cult_2"), rating: val("cult_rate_2") },
+            { culture: val("cult_3"), rating: val("cult_rate_3") },
+            { culture: val("cult_4"), rating: val("cult_rate_4") },
+            { culture: val("cult_5"), rating: val("cult_rate_5") }
+          ],
+
+          edu_years: val("edu_years"),
+          edu_level: getChecked("edu_level"),
+          edu_other_text: val("edu_other"),
+
+          immigration_usa: val("imm_usa"),
+          immigration_other: val("imm_other"),
+
+          disability: {
+            vision: !!document.getElementById("dis_vision")?.checked,
+            hearing: !!document.getElementById("dis_hearing")?.checked,
+            language: !!document.getElementById("dis_language")?.checked,
+            learning: !!document.getElementById("dis_learning")?.checked,
+            none: !!document.getElementById("dis_none")?.checked,
+            explain: val("dis_explain")
+          }
+        };
+
+        // Save Colors page
+        const colors = (document.getElementById("colors_english")?.value || "").trim();
+
+        // Store properties globally in the dataset
+        jsPsych.data.addProperties({
+          participant_name: participantName,
+          leapq: leapq,
+          colors_english: colors
+        });
+      }
+    });
+
+    // ---------------------------------
+    // Practice start page
+    // ---------------------------------
+    timeline.push({
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <h2>Practice</h2>
+        <p>You will first complete a short practice block to get familiar with the task.</p>
+        <p>Please use headphones if possible.</p>
+      `,
+      choices: ["Start practice"]
+    });
+
+    // ---------------------------------
+    // Stimuli lists (EDIT THESE FILENAMES)
+    // Put .wav files in: ./audio/
+    // ---------------------------------
+    const practiceStimuli = [
+      { id: "practice_001", audio: "audio/practice_001.wav" },
+      { id: "practice_002", audio: "audio/practice_002.wav" },
+      { id: "practice_003", audio: "audio/practice_003.wav" },
+      { id: "practice_004", audio: "audio/practice_004.wav" },
+      { id: "practice_005", audio: "audio/practice_005.wav" }
+    ];
+
+    // 5 test/main .wav files (edit filenames to match yours)
+    const mainStimuli = [
+      { id: "main_001", audio: "audio/main_001.wav" },
+      { id: "main_002", audio: "audio/main_002.wav" },
+      { id: "main_003", audio: "audio/main_003.wav" },
+      { id: "main_004", audio: "audio/main_004.wav" },
+      { id: "main_005", audio: "audio/main_005.wav" }
+    ];
+
+    // ---------------------------------
+    // Helper: build ONE audio+slider trial + Replay button
+    // ---------------------------------
+    function makeRatingTrial(s, phaseLabel) {
+      let player = null;
+      let durationMs = null;
+      let clearTimer = null;
+
+      return {
+        type: jsPsychAudioSliderResponse,
+        stimulus: s.audio,
+
+        min: 1,
+        max: 5,
+        step: 1,
+        labels: ["1", "2", "3", "4", "5"],
+
+        response_allowed_while_playing: false,
+        require_movement: true,
+        button_label: "Next",
+
+        prompt: `
+          <div style="margin-top: 12px; margin-bottom: 10px;">
+            <button id="replay-btn" type="button">Replay 🔁</button>
+            <span id="replay-status" style="margin-left: 10px; font-size: 0.95em;"></span>
+          </div>
+
+          <p><b>How Persian-like does this word sound?</b></p>
+          <p>1 = impossible, 5 = perfectly normal</p>
+        `,
+
+        on_load: () => {
+          const replayBtn = document.getElementById("replay-btn");
+          const statusEl = document.getElementById("replay-status");
+
+          const setStatus = (txt) => {
+            if (statusEl) statusEl.textContent = txt || "";
+          };
+
+          // Create/obtain audio player used by jsPsych
+          jsPsych.pluginAPI.getAudioPlayer(s.audio).then((p) => {
+            player = p;
+
+            // Clear "Playing..." when audio ends
+            player.addEventListener("ended", () => {
+              if (clearTimer) clearTimeout(clearTimer);
+              setStatus("");
+            });
+          });
+
+          // Duration fallback (some browsers)
+          const metaAudio = new Audio(s.audio);
+          metaAudio.addEventListener("loadedmetadata", () => {
+            if (isFinite(metaAudio.duration)) {
+              durationMs = Math.max(0, Math.round(metaAudio.duration * 1000));
+            }
+          });
+          metaAudio.load();
+
+          replayBtn.addEventListener("click", () => {
+            if (!player) return;
+
+            if (clearTimer) clearTimeout(clearTimer);
+            setStatus("Playing...");
+
+            try {
+              // Force restart
+              player.stop();
+              player.play();
+            } catch (e) {
+              console.warn("Replay failed:", e);
+              setStatus("");
+              return;
+            }
+
+            // Timer fallback in case ended event is unreliable
+            if (durationMs != null) {
+              clearTimer = setTimeout(() => setStatus(""), durationMs + 150);
+            }
+          });
+        },
+
+        data: {
+          task: "rating",
+          phase: phaseLabel,
+          trial_id: s.id,
+          audio_file: s.audio
+        }
+      };
+    }
+
+    // ---------------------------------
+    // Practice block
+    // ---------------------------------
+    practiceStimuli.forEach((s) => timeline.push(makeRatingTrial(s, "practice")));
+
+    // ---------------------------------
+    // Transition to main task
+    // ---------------------------------
+    timeline.push({
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <h2>Main task</h2>
+        <p>Practice is finished. Press the button below to start the main task.</p>
+      `,
+      choices: ["Start main task"]
+    });
+
+    // ---------------------------------
+    // Main block (randomized)
+    // ---------------------------------
+    jsPsych.randomization.shuffle(mainStimuli).forEach((s) => {
+      timeline.push(makeRatingTrial(s, "main"));
+    });
+
+    // ---------------------------------
+    // End page
+    // ---------------------------------
+    timeline.push({
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <h2>Finished</h2>
+        <p>Thank you! You have completed the task.</p>
+        <p>Your results file will download automatically.</p>
+      `,
+      choices: ["Finish"]
+    });
+
+    jsPsych.run(timeline);
+  </script>
+</html>

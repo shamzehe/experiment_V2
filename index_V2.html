@@ -1,0 +1,1031 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Persian-likeness Rating Task</title>
+
+    <!-- jsPsych core + CSS -->
+    <script src="https://unpkg.com/jspsych@8.2.3"></script>
+    <link href="https://unpkg.com/jspsych@8.2.3/css/jspsych.css" rel="stylesheet" />
+
+    <!-- Plugins -->
+    <script src="https://unpkg.com/@jspsych/plugin-instructions@2.1.0"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-html-button-response@2.1.0"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-audio-slider-response@2.1.1"></script>
+  </head>
+
+  <body></body>
+
+  <script>
+    // ---------------------------------
+    // Helper: download a text file in the browser
+    // ---------------------------------
+    function downloadTextFile(filename, text) {
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    // Participant "filename" (set from LEAP-Q first/last)
+    let participantName = "participant";
+
+    // ---------------------------------
+    // Initialize
+    // ---------------------------------
+    const jsPsych = initJsPsych({
+      use_webaudio: false,
+      on_finish: () => {
+        const rating = jsPsych.data.get().filter({ task: "rating" });
+
+        const header = ["name", "phase", "trial_id", "audio_file", "response", "rt"].join("\t");
+        const rows = rating.values().map((d) =>
+          [
+            participantName,
+            d.phase,
+            d.trial_id,
+            d.audio_file,
+            d.response,
+            d.rt
+          ].join("\t")
+        );
+
+        const textOut = [header, ...rows].join("\n");
+
+        const safeName = (participantName || "participant")
+          .trim()
+          .replace(/[\\/:*?"<>|]+/g, "_")
+          .replace(/\s+/g, "_");
+
+        downloadTextFile(`${safeName}.txt`, textOut);
+
+        // Optional debug
+        jsPsych.data.displayData();
+      }
+    });
+
+    const timeline = [];
+
+    // ---------------------------------
+    // Small helpers for LEAP-Q validation + parsing
+    // ---------------------------------
+    function val(id) {
+      return (document.getElementById(id)?.value ?? "").toString().trim();
+    }
+    function setHtml(id, html) {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = html;
+    }
+    function show(id, yes) {
+      const el = document.getElementById(id);
+      if (el) el.style.display = yes ? "block" : "none";
+    }
+    function getChecked(name) {
+      return (document.querySelector(`input[name="${name}"]:checked`)?.value || "").trim();
+    }
+    function asNumber(x) {
+      const n = Number(x);
+      return Number.isFinite(n) ? n : NaN;
+    }
+    function sumPercent(ids) {
+      let s = 0;
+      for (const id of ids) {
+        const n = asNumber(val(id));
+        if (!Number.isFinite(n)) return NaN;
+        s += n;
+      }
+      return s;
+    }
+
+    function makeOptions0to10() {
+      let out = `<option value="">Select…</option>`;
+      for (let i = 0; i <= 10; i++) out += `<option value="${i}">${i}</option>`;
+      return out;
+    }
+
+    const OPT_0_10 = makeOptions0to10();
+
+    // ---------------------------------
+    // Welcome + Participant Info (LEAP-Q) + Instructions (Next/Back across all)
+    // ---------------------------------
+    timeline.push({
+      type: jsPsychInstructions,
+      pages: [
+        // Page 0: Thank you
+        `
+          <div style="max-width:760px; margin: 0 auto; text-align:left;">
+            <h2>Thank you for participating!</h2>
+            <p>In this study, you will listen to a series of made-up Persian words and rate how Persian-like they sound.</p>
+            <p>Please use headphones if possible and complete the task in a quiet environment.</p>
+            <p>Click <b>Next</b> to continue.</p>
+          </div>
+        `,
+
+        // Page 1: LEAP-Q participant information
+        `
+          <style>
+            .leap-wrap{
+              max-width: 820px;
+              margin: 0 auto;
+              text-align: left;
+              line-height: 1.35;
+            }
+            .leap-wrap h3{ margin: 6px 0 10px 0; }
+            .leap-row{
+              display: grid;
+              grid-template-columns: 220px 1fr;
+              gap: 10px;
+              align-items: center;
+              margin: 8px 0;
+            }
+            .leap-input{
+              font-size: 16px;
+              padding: 6px 8px;
+              width: min(420px, 95%);
+              box-sizing: border-box;
+            }
+            .leap-input-small{
+              font-size: 16px;
+              padding: 6px 8px;
+              width: 140px;
+              box-sizing: border-box;
+            }
+            .leap-select{
+              font-size: 16px;
+              padding: 6px 8px;
+              width: min(220px, 95%);
+              box-sizing: border-box;
+            }
+            .leap-block{
+              border-top: 1px solid #ddd;
+              padding-top: 14px;
+              margin-top: 14px;
+            }
+            .leap-table{
+              width: 100%;
+              border-collapse: collapse;
+              margin: 8px 0 12px 0;
+            }
+            .leap-table th, .leap-table td{
+              border: 1px solid #ddd;
+              padding: 6px 8px;
+              text-align: left;
+              vertical-align: top;
+            }
+            .leap-table th{
+              background: #f7f7f7;
+              font-weight: 600;
+            }
+            .leap-radio{
+              display: inline-block;
+              line-height: 1.7;
+            }
+            .leap-error{
+              color: #b00020;
+              margin-top: 12px;
+              display: none;
+              font-size: 14px;
+              padding: 10px;
+              border: 1px solid rgba(176,0,32,.25);
+              background: rgba(176,0,32,.04);
+            }
+            .hint{
+              color:#444;
+              font-size: 14px;
+              margin: 4px 0 10px 0;
+            }
+          </style>
+
+          <div class="leap-wrap">
+            <h3>Language Experience and Proficiency Questionnaire (LEAP-Q)</h3>
+            <div class="hint">Please answer all questions. You must complete every field to continue.</div>
+
+            <div class="leap-row">
+              <div>Last Name</div>
+              <div><input id="last_name" class="leap-input" type="text" data-required="true" data-label="Last Name"></div>
+            </div>
+
+            <div class="leap-row">
+              <div>First Name</div>
+              <div><input id="first_name" class="leap-input" type="text" data-required="true" data-label="First Name"></div>
+            </div>
+
+            <div class="leap-row">
+              <div>Today’s Date</div>
+              <div><input id="today_date" class="leap-input-small" type="date" data-required="true" data-label="Today’s Date"></div>
+            </div>
+
+            <div class="leap-row">
+              <div>Age</div>
+              <div><input id="age" class="leap-input-small" type="number" min="1" max="120" data-required="true" data-label="Age"></div>
+            </div>
+
+            <div class="leap-row">
+              <div>Date of Birth</div>
+              <div><input id="dob" class="leap-input-small" type="date" data-required="true" data-label="Date of Birth"></div>
+            </div>
+
+            <div class="leap-row">
+              <div>Sex</div>
+              <div class="leap-radio" data-required-group="true" data-label="Sex">
+                <label><input type="radio" name="sex" value="Male"> Male</label><br/>
+                <label><input type="radio" name="sex" value="Female"> Female</label>
+              </div>
+            </div>
+
+            <div class="leap-block">
+              <div><b>(1) Please list all the languages you know in order of dominance:</b></div>
+              <div class="hint">Fill all 5 slots (use “N/A” if fewer).</div>
+              <table class="leap-table">
+                <tr><th>#</th><th>Language</th></tr>
+                <tr><td>1</td><td><input id="dom_1" class="leap-input" type="text" data-required="true" data-label="Dominance language 1"></td></tr>
+                <tr><td>2</td><td><input id="dom_2" class="leap-input" type="text" data-required="true" data-label="Dominance language 2"></td></tr>
+                <tr><td>3</td><td><input id="dom_3" class="leap-input" type="text" data-required="true" data-label="Dominance language 3"></td></tr>
+                <tr><td>4</td><td><input id="dom_4" class="leap-input" type="text" data-required="true" data-label="Dominance language 4"></td></tr>
+                <tr><td>5</td><td><input id="dom_5" class="leap-input" type="text" data-required="true" data-label="Dominance language 5"></td></tr>
+              </table>
+            </div>
+
+            <div class="leap-block">
+              <div><b>(2) Please list all the languages you know in order of acquisition (your native language first):</b></div>
+              <div class="hint">Fill all 5 slots (use “N/A” if fewer).</div>
+              <table class="leap-table">
+                <tr><th>#</th><th>Language</th></tr>
+                <tr><td>1</td><td><input id="acq_1" class="leap-input" type="text" data-required="true" data-label="Acquisition language 1"></td></tr>
+                <tr><td>2</td><td><input id="acq_2" class="leap-input" type="text" data-required="true" data-label="Acquisition language 2"></td></tr>
+                <tr><td>3</td><td><input id="acq_3" class="leap-input" type="text" data-required="true" data-label="Acquisition language 3"></td></tr>
+                <tr><td>4</td><td><input id="acq_4" class="leap-input" type="text" data-required="true" data-label="Acquisition language 4"></td></tr>
+                <tr><td>5</td><td><input id="acq_5" class="leap-input" type="text" data-required="true" data-label="Acquisition language 5"></td></tr>
+              </table>
+            </div>
+
+            <div class="leap-block">
+              <div><b>(3) Percentage of the time you are currently and on average exposed to each language (must sum to 100%):</b></div>
+              <div class="hint">Enter 5 languages and 5 percentages. Percentages must sum to 100.</div>
+              <table class="leap-table">
+                <tr><th>Language</th><th>Percent</th></tr>
+                <tr>
+                  <td><input id="exp_lang_1" class="leap-input" type="text" data-required="true" data-label="Exposure language 1"></td>
+                  <td><input id="exp_pct_1" class="leap-input-small" type="number" min="0" max="100" data-required="true" data-label="Exposure percent 1"></td>
+                </tr>
+                <tr>
+                  <td><input id="exp_lang_2" class="leap-input" type="text" data-required="true" data-label="Exposure language 2"></td>
+                  <td><input id="exp_pct_2" class="leap-input-small" type="number" min="0" max="100" data-required="true" data-label="Exposure percent 2"></td>
+                </tr>
+                <tr>
+                  <td><input id="exp_lang_3" class="leap-input" type="text" data-required="true" data-label="Exposure language 3"></td>
+                  <td><input id="exp_pct_3" class="leap-input-small" type="number" min="0" max="100" data-required="true" data-label="Exposure percent 3"></td>
+                </tr>
+                <tr>
+                  <td><input id="exp_lang_4" class="leap-input" type="text" data-required="true" data-label="Exposure language 4"></td>
+                  <td><input id="exp_pct_4" class="leap-input-small" type="number" min="0" max="100" data-required="true" data-label="Exposure percent 4"></td>
+                </tr>
+                <tr>
+                  <td><input id="exp_lang_5" class="leap-input" type="text" data-required="true" data-label="Exposure language 5"></td>
+                  <td><input id="exp_pct_5" class="leap-input-small" type="number" min="0" max="100" data-required="true" data-label="Exposure percent 5"></td>
+                </tr>
+              </table>
+              <div class="hint"><b>Exposure total:</b> <span id="exp_total">—</span></div>
+            </div>
+
+            <div class="leap-block">
+              <div><b>(4) When choosing to read a text available in all your languages, what % of cases would you choose each language? (sum to 100%):</b></div>
+              <table class="leap-table">
+                <tr><th>Language</th><th>Percent</th></tr>
+                <tr>
+                  <td><input id="read_lang_1" class="leap-input" type="text" data-required="true" data-label="Read language 1"></td>
+                  <td><input id="read_pct_1" class="leap-input-small" type="number" min="0" max="100" data-required="true" data-label="Read percent 1"></td>
+                </tr>
+                <tr>
+                  <td><input id="read_lang_2" class="leap-input" type="text" data-required="true" data-label="Read language 2"></td>
+                  <td><input id="read_pct_2" class="leap-input-small" type="number" min="0" max="100" data-required="true" data-label="Read percent 2"></td>
+                </tr>
+                <tr>
+                  <td><input id="read_lang_3" class="leap-input" type="text" data-required="true" data-label="Read language 3"></td>
+                  <td><input id="read_pct_3" class="leap-input-small" type="number" min="0" max="100" data-required="true" data-label="Read percent 3"></td>
+                </tr>
+                <tr>
+                  <td><input id="read_lang_4" class="leap-input" type="text" data-required="true" data-label="Read language 4"></td>
+                  <td><input id="read_pct_4" class="leap-input-small" type="number" min="0" max="100" data-required="true" data-label="Read percent 4"></td>
+                </tr>
+                <tr>
+                  <td><input id="read_lang_5" class="leap-input" type="text" data-required="true" data-label="Read language 5"></td>
+                  <td><input id="read_pct_5" class="leap-input-small" type="number" min="0" max="100" data-required="true" data-label="Read percent 5"></td>
+                </tr>
+              </table>
+              <div class="hint"><b>Reading total:</b> <span id="read_total">—</span></div>
+            </div>
+
+            <div class="leap-block">
+              <div><b>(5) When choosing a language to speak with a person equally fluent in all your languages, what % would you choose each language? (sum to 100%):</b></div>
+              <table class="leap-table">
+                <tr><th>Language</th><th>Percent</th></tr>
+                <tr>
+                  <td><input id="spk_lang_1" class="leap-input" type="text" data-required="true" data-label="Speak language 1"></td>
+                  <td><input id="spk_pct_1" class="leap-input-small" type="number" min="0" max="100" data-required="true" data-label="Speak percent 1"></td>
+                </tr>
+                <tr>
+                  <td><input id="spk_lang_2" class="leap-input" type="text" data-required="true" data-label="Speak language 2"></td>
+                  <td><input id="spk_pct_2" class="leap-input-small" type="number" min="0" max="100" data-required="true" data-label="Speak percent 2"></td>
+                </tr>
+                <tr>
+                  <td><input id="spk_lang_3" class="leap-input" type="text" data-required="true" data-label="Speak language 3"></td>
+                  <td><input id="spk_pct_3" class="leap-input-small" type="number" min="0" max="100" data-required="true" data-label="Speak percent 3"></td>
+                </tr>
+                <tr>
+                  <td><input id="spk_lang_4" class="leap-input" type="text" data-required="true" data-label="Speak language 4"></td>
+                  <td><input id="spk_pct_4" class="leap-input-small" type="number" min="0" max="100" data-required="true" data-label="Speak percent 4"></td>
+                </tr>
+                <tr>
+                  <td><input id="spk_lang_5" class="leap-input" type="text" data-required="true" data-label="Speak language 5"></td>
+                  <td><input id="spk_pct_5" class="leap-input-small" type="number" min="0" max="100" data-required="true" data-label="Speak percent 5"></td>
+                </tr>
+              </table>
+              <div class="hint"><b>Speaking total:</b> <span id="spk_total">—</span></div>
+            </div>
+
+            <div class="leap-block">
+              <div><b>(6) Cultures you identify with + rating (0–10):</b></div>
+              <div class="hint">Fill all 5 rows (use “N/A” if fewer).</div>
+              <table class="leap-table">
+                <tr><th>Culture</th><th>Identification (0–10)</th></tr>
+                <tr>
+                  <td><input id="cult_1" class="leap-input" type="text" data-required="true" data-label="Culture 1"></td>
+                  <td><select id="cult_rate_1" class="leap-select" data-required="true" data-label="Culture 1 rating">${OPT_0_10}</select></td>
+                </tr>
+                <tr>
+                  <td><input id="cult_2" class="leap-input" type="text" data-required="true" data-label="Culture 2"></td>
+                  <td><select id="cult_rate_2" class="leap-select" data-required="true" data-label="Culture 2 rating">${OPT_0_10}</select></td>
+                </tr>
+                <tr>
+                  <td><input id="cult_3" class="leap-input" type="text" data-required="true" data-label="Culture 3"></td>
+                  <td><select id="cult_rate_3" class="leap-select" data-required="true" data-label="Culture 3 rating">${OPT_0_10}</select></td>
+                </tr>
+                <tr>
+                  <td><input id="cult_4" class="leap-input" type="text" data-required="true" data-label="Culture 4"></td>
+                  <td><select id="cult_rate_4" class="leap-select" data-required="true" data-label="Culture 4 rating">${OPT_0_10}</select></td>
+                </tr>
+                <tr>
+                  <td><input id="cult_5" class="leap-input" type="text" data-required="true" data-label="Culture 5"></td>
+                  <td><select id="cult_rate_5" class="leap-select" data-required="true" data-label="Culture 5 rating">${OPT_0_10}</select></td>
+                </tr>
+              </table>
+            </div>
+
+            <div class="leap-block">
+              <div class="leap-row">
+                <div><b>(7) Years of formal education</b></div>
+                <div><input id="edu_years" class="leap-input-small" type="number" min="0" max="40" data-required="true" data-label="Years of education"></div>
+              </div>
+
+              <div class="leap-row">
+                <div><b>Highest education level</b></div>
+                <div class="leap-radio" data-required-group="true" data-label="Highest education level">
+                  <label><input type="radio" name="edu_level" value="Less than High School"> Less than High School</label><br/>
+                  <label><input type="radio" name="edu_level" value="High School"> High School</label><br/>
+                  <label><input type="radio" name="edu_level" value="Some College"> Some College</label><br/>
+                  <label><input type="radio" name="edu_level" value="College"> College</label><br/>
+                  <label><input type="radio" name="edu_level" value="Some Graduate School"> Some Graduate School</label><br/>
+                  <label><input type="radio" name="edu_level" value="Masters"> Masters</label><br/>
+                  <label><input type="radio" name="edu_level" value="Ph.D./M.D./J.D."> Ph.D./M.D./J.D.</label><br/>
+                  <label><input type="radio" name="edu_level" value="Professional Training"> Professional Training</label><br/>
+                  <label>
+                    <input type="radio" name="edu_level" value="Other"> Other:
+                    <input id="edu_other" class="leap-input" type="text" placeholder="Specify" data-required="true" data-label="Education level (Other) text">
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="leap-block">
+              <div class="leap-row">
+                <div><b>(8) Date of immigration to the USA (if applicable)</b></div>
+                <div><input id="imm_usa" class="leap-input-small" type="date" data-required="true" data-label="Immigration date to USA (or N/A)"></div>
+              </div>
+
+              <div class="leap-row">
+                <div><b>If immigrated to another country</b></div>
+                <div><input id="imm_other" class="leap-input" type="text" data-required="true" data-label="Other immigration (country + date or N/A)" placeholder="Country and date (or N/A)"></div>
+              </div>
+            </div>
+
+            <div class="leap-block">
+              <div><b>(9) Have you ever had a vision problem, hearing impairment, language disability, or learning disability?</b></div>
+              <div class="hint">Check all applicable (or check “None”).</div>
+
+              <div class="leap-radio" data-required-group="true" data-label="Disability selection">
+                <label><input type="checkbox" id="dis_vision" value="Vision problem"> Vision problem</label><br/>
+                <label><input type="checkbox" id="dis_hearing" value="Hearing impairment"> Hearing impairment</label><br/>
+                <label><input type="checkbox" id="dis_language" value="Language disability"> Language disability</label><br/>
+                <label><input type="checkbox" id="dis_learning" value="Learning disability"> Learning disability</label><br/>
+                <label><input type="checkbox" id="dis_none" value="None"> None</label>
+              </div>
+
+              <div class="leap-row" style="margin-top:10px;">
+                <div><b>If yes, please explain (including any corrections):</b></div>
+                <div><input id="dis_explain" class="leap-input" type="text" data-required="true" data-label="Disability explanation (or N/A)" placeholder="Explanation or N/A"></div>
+              </div>
+            </div>
+
+            <!-- Language Block A -->
+            <div class="leap-block">
+              <h3 style="margin:0 0 10px 0;">Language A</h3>
+
+              <div class="leap-row">
+                <div>Language:</div>
+                <div><input id="langA_name" class="leap-input" type="text" data-required="true" data-label="Language A name"></div>
+              </div>
+
+              <div><b>(1) Age when you…</b></div>
+              <table class="leap-table">
+                <tr><th>Item</th><th>Age</th></tr>
+                <tr><td>Began acquiring</td><td><input id="langA_age_acq" class="leap-input-small" type="number" min="0" max="120" data-required="true" data-label="Language A age began acquiring"></td></tr>
+                <tr><td>Became fluent</td><td><input id="langA_age_fluent" class="leap-input-small" type="number" min="0" max="120" data-required="true" data-label="Language A age became fluent"></td></tr>
+                <tr><td>Began reading</td><td><input id="langA_age_read" class="leap-input-small" type="number" min="0" max="120" data-required="true" data-label="Language A age began reading"></td></tr>
+                <tr><td>Became fluent reading</td><td><input id="langA_age_read_fluent" class="leap-input-small" type="number" min="0" max="120" data-required="true" data-label="Language A age fluent reading"></td></tr>
+              </table>
+
+              <div><b>(2) Years & months in each language environment</b></div>
+              <table class="leap-table">
+                <tr><th>Environment</th><th>Years</th><th>Months</th></tr>
+                <tr>
+                  <td>A country where it is spoken</td>
+                  <td><input id="langA_env_country_y" class="leap-input-small" type="number" min="0" max="120" data-required="true" data-label="Language A country years"></td>
+                  <td><input id="langA_env_country_m" class="leap-input-small" type="number" min="0" max="11" data-required="true" data-label="Language A country months"></td>
+                </tr>
+                <tr>
+                  <td>A family where it is spoken</td>
+                  <td><input id="langA_env_family_y" class="leap-input-small" type="number" min="0" max="120" data-required="true" data-label="Language A family years"></td>
+                  <td><input id="langA_env_family_m" class="leap-input-small" type="number" min="0" max="11" data-required="true" data-label="Language A family months"></td>
+                </tr>
+                <tr>
+                  <td>A school/work environment where it is spoken</td>
+                  <td><input id="langA_env_school_y" class="leap-input-small" type="number" min="0" max="120" data-required="true" data-label="Language A school/work years"></td>
+                  <td><input id="langA_env_school_m" class="leap-input-small" type="number" min="0" max="11" data-required="true" data-label="Language A school/work months"></td>
+                </tr>
+              </table>
+
+              <div><b>(3) Proficiency (0–10)</b></div>
+              <table class="leap-table">
+                <tr><th>Speaking</th><th>Understanding spoken language</th><th>Reading</th></tr>
+                <tr>
+                  <td><select id="langA_prof_speak" class="leap-select" data-required="true" data-label="Language A proficiency speaking">${OPT_0_10}</select></td>
+                  <td><select id="langA_prof_under" class="leap-select" data-required="true" data-label="Language A proficiency understanding">${OPT_0_10}</select></td>
+                  <td><select id="langA_prof_read" class="leap-select" data-required="true" data-label="Language A proficiency reading">${OPT_0_10}</select></td>
+                </tr>
+              </table>
+
+              <div><b>(4) Factors contributing to learning (0–10)</b></div>
+              <table class="leap-table">
+                <tr><th>Factor</th><th>0–10</th></tr>
+                <tr><td>Interacting with friends</td><td><select id="langA_learn_friends" class="leap-select" data-required="true" data-label="Language A learning friends">${OPT_0_10}</select></td></tr>
+                <tr><td>Language tapes/self instruction</td><td><select id="langA_learn_tapes" class="leap-select" data-required="true" data-label="Language A learning tapes">${OPT_0_10}</select></td></tr>
+                <tr><td>Interacting with family</td><td><select id="langA_learn_family" class="leap-select" data-required="true" data-label="Language A learning family">${OPT_0_10}</select></td></tr>
+                <tr><td>Watching TV</td><td><select id="langA_learn_tv" class="leap-select" data-required="true" data-label="Language A learning TV">${OPT_0_10}</select></td></tr>
+                <tr><td>Reading</td><td><select id="langA_learn_reading" class="leap-select" data-required="true" data-label="Language A learning reading">${OPT_0_10}</select></td></tr>
+                <tr><td>Listening to the radio</td><td><select id="langA_learn_radio" class="leap-select" data-required="true" data-label="Language A learning radio">${OPT_0_10}</select></td></tr>
+              </table>
+
+              <div><b>(5) Current exposure contexts (0–10)</b></div>
+              <table class="leap-table">
+                <tr><th>Context</th><th>0–10</th></tr>
+                <tr><td>Interacting with friends</td><td><select id="langA_exp_friends" class="leap-select" data-required="true" data-label="Language A exposure friends">${OPT_0_10}</select></td></tr>
+                <tr><td>Listening to radio/music</td><td><select id="langA_exp_music" class="leap-select" data-required="true" data-label="Language A exposure music">${OPT_0_10}</select></td></tr>
+                <tr><td>Interacting with family</td><td><select id="langA_exp_family" class="leap-select" data-required="true" data-label="Language A exposure family">${OPT_0_10}</select></td></tr>
+                <tr><td>Reading</td><td><select id="langA_exp_read" class="leap-select" data-required="true" data-label="Language A exposure reading">${OPT_0_10}</select></td></tr>
+                <tr><td>Watching TV</td><td><select id="langA_exp_tv" class="leap-select" data-required="true" data-label="Language A exposure TV">${OPT_0_10}</select></td></tr>
+                <tr><td>Language-lab/self-instruction</td><td><select id="langA_exp_lab" class="leap-select" data-required="true" data-label="Language A exposure lab">${OPT_0_10}</select></td></tr>
+              </table>
+
+              <div class="leap-row">
+                <div><b>(6) Foreign accent (0–10)</b></div>
+                <div><select id="langA_accent" class="leap-select" data-required="true" data-label="Language A accent">${OPT_0_10}</select></div>
+              </div>
+
+              <div class="leap-row">
+                <div><b>(7) Others identify as non-native (0–10)</b></div>
+                <div><select id="langA_non_native" class="leap-select" data-required="true" data-label="Language A non-native frequency">${OPT_0_10}</select></div>
+              </div>
+            </div>
+
+            <!-- Language Block B -->
+            <div class="leap-block">
+              <h3 style="margin:0 0 10px 0;">Language B</h3>
+
+              <div class="leap-row">
+                <div>Language:</div>
+                <div><input id="langB_name" class="leap-input" type="text" data-required="true" data-label="Language B name"></div>
+              </div>
+
+              <div><b>(1) Age when you…</b></div>
+              <table class="leap-table">
+                <tr><th>Item</th><th>Age</th></tr>
+                <tr><td>Began acquiring</td><td><input id="langB_age_acq" class="leap-input-small" type="number" min="0" max="120" data-required="true" data-label="Language B age began acquiring"></td></tr>
+                <tr><td>Became fluent</td><td><input id="langB_age_fluent" class="leap-input-small" type="number" min="0" max="120" data-required="true" data-label="Language B age became fluent"></td></tr>
+                <tr><td>Began reading</td><td><input id="langB_age_read" class="leap-input-small" type="number" min="0" max="120" data-required="true" data-label="Language B age began reading"></td></tr>
+                <tr><td>Became fluent reading</td><td><input id="langB_age_read_fluent" class="leap-input-small" type="number" min="0" max="120" data-required="true" data-label="Language B age fluent reading"></td></tr>
+              </table>
+
+              <div><b>(2) Years & months in each language environment</b></div>
+              <table class="leap-table">
+                <tr><th>Environment</th><th>Years</th><th>Months</th></tr>
+                <tr>
+                  <td>A country where it is spoken</td>
+                  <td><input id="langB_env_country_y" class="leap-input-small" type="number" min="0" max="120" data-required="true" data-label="Language B country years"></td>
+                  <td><input id="langB_env_country_m" class="leap-input-small" type="number" min="0" max="11" data-required="true" data-label="Language B country months"></td>
+                </tr>
+                <tr>
+                  <td>A family where it is spoken</td>
+                  <td><input id="langB_env_family_y" class="leap-input-small" type="number" min="0" max="120" data-required="true" data-label="Language B family years"></td>
+                  <td><input id="langB_env_family_m" class="leap-input-small" type="number" min="0" max="11" data-required="true" data-label="Language B family months"></td>
+                </tr>
+                <tr>
+                  <td>A school/work environment where it is spoken</td>
+                  <td><input id="langB_env_school_y" class="leap-input-small" type="number" min="0" max="120" data-required="true" data-label="Language B school/work years"></td>
+                  <td><input id="langB_env_school_m" class="leap-input-small" type="number" min="0" max="11" data-required="true" data-label="Language B school/work months"></td>
+                </tr>
+              </table>
+
+              <div><b>(3) Proficiency (0–10)</b></div>
+              <table class="leap-table">
+                <tr><th>Speaking</th><th>Understanding spoken language</th><th>Reading</th></tr>
+                <tr>
+                  <td><select id="langB_prof_speak" class="leap-select" data-required="true" data-label="Language B proficiency speaking">${OPT_0_10}</select></td>
+                  <td><select id="langB_prof_under" class="leap-select" data-required="true" data-label="Language B proficiency understanding">${OPT_0_10}</select></td>
+                  <td><select id="langB_prof_read" class="leap-select" data-required="true" data-label="Language B proficiency reading">${OPT_0_10}</select></td>
+                </tr>
+              </table>
+
+              <div><b>(4) Factors contributing to learning (0–10)</b></div>
+              <table class="leap-table">
+                <tr><th>Factor</th><th>0–10</th></tr>
+                <tr><td>Interacting with friends</td><td><select id="langB_learn_friends" class="leap-select" data-required="true" data-label="Language B learning friends">${OPT_0_10}</select></td></tr>
+                <tr><td>Language tapes/self instruction</td><td><select id="langB_learn_tapes" class="leap-select" data-required="true" data-label="Language B learning tapes">${OPT_0_10}</select></td></tr>
+                <tr><td>Interacting with family</td><td><select id="langB_learn_family" class="leap-select" data-required="true" data-label="Language B learning family">${OPT_0_10}</select></td></tr>
+                <tr><td>Watching TV</td><td><select id="langB_learn_tv" class="leap-select" data-required="true" data-label="Language B learning TV">${OPT_0_10}</select></td></tr>
+                <tr><td>Reading</td><td><select id="langB_learn_reading" class="leap-select" data-required="true" data-label="Language B learning reading">${OPT_0_10}</select></td></tr>
+                <tr><td>Listening to the radio</td><td><select id="langB_learn_radio" class="leap-select" data-required="true" data-label="Language B learning radio">${OPT_0_10}</select></td></tr>
+              </table>
+
+              <div><b>(5) Current exposure contexts (0–10)</b></div>
+              <table class="leap-table">
+                <tr><th>Context</th><th>0–10</th></tr>
+                <tr><td>Interacting with friends</td><td><select id="langB_exp_friends" class="leap-select" data-required="true" data-label="Language B exposure friends">${OPT_0_10}</select></td></tr>
+                <tr><td>Listening to radio/music</td><td><select id="langB_exp_music" class="leap-select" data-required="true" data-label="Language B exposure music">${OPT_0_10}</select></td></tr>
+                <tr><td>Interacting with family</td><td><select id="langB_exp_family" class="leap-select" data-required="true" data-label="Language B exposure family">${OPT_0_10}</select></td></tr>
+                <tr><td>Reading</td><td><select id="langB_exp_read" class="leap-select" data-required="true" data-label="Language B exposure reading">${OPT_0_10}</select></td></tr>
+                <tr><td>Watching TV</td><td><select id="langB_exp_tv" class="leap-select" data-required="true" data-label="Language B exposure TV">${OPT_0_10}</select></td></tr>
+                <tr><td>Language-lab/self-instruction</td><td><select id="langB_exp_lab" class="leap-select" data-required="true" data-label="Language B exposure lab">${OPT_0_10}</select></td></tr>
+              </table>
+
+              <div class="leap-row">
+                <div><b>(6) Foreign accent (0–10)</b></div>
+                <div><select id="langB_accent" class="leap-select" data-required="true" data-label="Language B accent">${OPT_0_10}</select></div>
+              </div>
+
+              <div class="leap-row">
+                <div><b>(7) Others identify as non-native (0–10)</b></div>
+                <div><select id="langB_non_native" class="leap-select" data-required="true" data-label="Language B non-native frequency">${OPT_0_10}</select></div>
+              </div>
+            </div>
+
+            <div id="leap_error" class="leap-error"></div>
+            <p style="margin-top:16px;">Click <b>Next</b> to continue.</p>
+          </div>
+        `,
+
+        // Page 2: Introduction
+        `
+          <div style="max-width:760px; margin: 0 auto; text-align:left;">
+            <h2>Introduction</h2>
+            <p>You will hear a series of made-up Persian words, one at a time. These words do not exist in Persian.</p>
+            <p>Your task is to rate each word how Persian-like it is: how much it sounds like a normal Persian word that you simply never learned before.</p>
+            <p>There are no right or wrong answers. We want your honest opinion.</p>
+          </div>
+        `,
+
+        // Page 3
+        `
+          <div style="max-width:760px; margin: 0 auto; text-align:left;">
+            <h2>What you will do</h2>
+            <p>There is a mini test task that helps you learn how to do the task before you move to the main task.</p>
+            <p>Focus on how the word sounds. Using the five labeled slider below, you will rate each word from <b>1</b> to <b>5</b>:</p>
+            <p><b>5</b>: perfectly good, normal-sounding Persian word<br>
+               <b>1</b>: awful or impossible-sounding Persian word</p>
+            <p>After you’ve rated the word, press <b>Next</b> to continue.</p>
+          </div>
+        `,
+
+        // Page 4
+        `
+          <div style="max-width:760px; margin: 0 auto; text-align:left;">
+            <h2>Things to keep in mind</h2>
+            <p>Focus on how Persian-like each word is, not whether it actually exists.</p>
+            <p>We monitor responses to make sure you are attentive, so there will be simple attention checks along the way.</p>
+          </div>
+        `
+      ],
+      show_clickable_nav: true,
+      allow_backward: true,
+      button_label_next: "Next",
+      button_label_previous: "Back",
+
+      on_load: () => {
+        const nextBtn = document.querySelector("#jspsych-instructions-next");
+        if (!nextBtn) return;
+
+        // Live percent totals for page 1
+        const updateTotals = () => {
+          const exp = sumPercent(["exp_pct_1","exp_pct_2","exp_pct_3","exp_pct_4","exp_pct_5"]);
+          const read = sumPercent(["read_pct_1","read_pct_2","read_pct_3","read_pct_4","read_pct_5"]);
+          const spk = sumPercent(["spk_pct_1","spk_pct_2","spk_pct_3","spk_pct_4","spk_pct_5"]);
+
+          setHtml("exp_total", Number.isFinite(exp) ? `${exp}%` : "—");
+          setHtml("read_total", Number.isFinite(read) ? `${read}%` : "—");
+          setHtml("spk_total", Number.isFinite(spk) ? `${spk}%` : "—");
+        };
+
+        // Attach input listeners (page 1 only)
+        const attachIfExists = (id) => {
+          const el = document.getElementById(id);
+          if (el) el.addEventListener("input", updateTotals);
+        };
+
+        [
+          "exp_pct_1","exp_pct_2","exp_pct_3","exp_pct_4","exp_pct_5",
+          "read_pct_1","read_pct_2","read_pct_3","read_pct_4","read_pct_5",
+          "spk_pct_1","spk_pct_2","spk_pct_3","spk_pct_4","spk_pct_5"
+        ].forEach(attachIfExists);
+
+        updateTotals();
+
+        // Validate LEAP-Q page before allowing Next
+        nextBtn.addEventListener(
+          "click",
+          (e) => {
+            const container = document.querySelector(".jspsych-instructions");
+            const pageIndex = container ? Number(container.getAttribute("data-current-page")) : null;
+            if (pageIndex !== 1) return;
+
+            const missing = [];
+
+            // Required single fields
+            const requiredFields = Array.from(document.querySelectorAll('[data-required="true"]'));
+            for (const el of requiredFields) {
+              const label = el.getAttribute("data-label") || el.id || "This field";
+              const v = (el.value ?? "").toString().trim();
+              if (v === "") missing.push(label);
+            }
+
+            // Required radio groups + checkbox group rules
+            const sex = getChecked("sex");
+            if (!sex) missing.push("Sex");
+
+            const eduLevel = getChecked("edu_level");
+            if (!eduLevel) missing.push("Highest education level");
+
+            // Disability selection: require at least one checkbox checked
+            const disChecks = ["dis_vision","dis_hearing","dis_language","dis_learning","dis_none"]
+              .map(id => document.getElementById(id))
+              .filter(Boolean);
+            const anyDis = disChecks.some(x => x.checked);
+            if (!anyDis) missing.push("Disability selection");
+
+            // Percentage totals must equal 100
+            const exp = sumPercent(["exp_pct_1","exp_pct_2","exp_pct_3","exp_pct_4","exp_pct_5"]);
+            const read = sumPercent(["read_pct_1","read_pct_2","read_pct_3","read_pct_4","read_pct_5"]);
+            const spk = sumPercent(["spk_pct_1","spk_pct_2","spk_pct_3","spk_pct_4","spk_pct_5"]);
+
+            const percentErrors = [];
+            if (!(Number.isFinite(exp) && Math.round(exp) === 100)) percentErrors.push("Exposure percentages must sum to 100%");
+            if (!(Number.isFinite(read) && Math.round(read) === 100)) percentErrors.push("Reading-choice percentages must sum to 100%");
+            if (!(Number.isFinite(spk) && Math.round(spk) === 100)) percentErrors.push("Speaking-choice percentages must sum to 100%");
+
+            if (missing.length > 0 || percentErrors.length > 0) {
+              e.stopImmediatePropagation();
+              e.preventDefault();
+
+              let html = "";
+              if (missing.length > 0) {
+                html += `<b>Please complete all required fields:</b><br>` + missing.map(m => `• ${m}`).join("<br>");
+              }
+              if (percentErrors.length > 0) {
+                if (html) html += `<br><br>`;
+                html += `<b>Percent totals:</b><br>` + percentErrors.map(p => `• ${p}`).join("<br>");
+              }
+
+              setHtml("leap_error", html);
+              show("leap_error", true);
+
+              // Focus first empty required field if possible
+              const firstMissing = requiredFields.find(el => ((el.value ?? "").toString().trim() === ""));
+              if (firstMissing) firstMissing.focus();
+
+              return;
+            } else {
+              show("leap_error", false);
+            }
+          },
+          true
+        );
+      },
+
+      // Save LEAP-Q responses when leaving the instructions block
+      on_finish: () => {
+        // Education "Other" handling: if not selected, we still collected edu_other, but it’s ok.
+        const pi = {
+          // Demographics
+          first_name: val("first_name"),
+          last_name: val("last_name"),
+          today_date: val("today_date"),
+          age: val("age"),
+          dob: val("dob"),
+          sex: getChecked("sex"),
+
+          // Languages dominance/acquisition
+          dominance_languages: [val("dom_1"),val("dom_2"),val("dom_3"),val("dom_4"),val("dom_5")],
+          acquisition_languages: [val("acq_1"),val("acq_2"),val("acq_3"),val("acq_4"),val("acq_5")],
+
+          // Percent blocks
+          exposure: [
+            { language: val("exp_lang_1"), percent: val("exp_pct_1") },
+            { language: val("exp_lang_2"), percent: val("exp_pct_2") },
+            { language: val("exp_lang_3"), percent: val("exp_pct_3") },
+            { language: val("exp_lang_4"), percent: val("exp_pct_4") },
+            { language: val("exp_lang_5"), percent: val("exp_pct_5") }
+          ],
+          read_choice: [
+            { language: val("read_lang_1"), percent: val("read_pct_1") },
+            { language: val("read_lang_2"), percent: val("read_pct_2") },
+            { language: val("read_lang_3"), percent: val("read_pct_3") },
+            { language: val("read_lang_4"), percent: val("read_pct_4") },
+            { language: val("read_lang_5"), percent: val("read_pct_5") }
+          ],
+          speak_choice: [
+            { language: val("spk_lang_1"), percent: val("spk_pct_1") },
+            { language: val("spk_lang_2"), percent: val("spk_pct_2") },
+            { language: val("spk_lang_3"), percent: val("spk_pct_3") },
+            { language: val("spk_lang_4"), percent: val("spk_pct_4") },
+            { language: val("spk_lang_5"), percent: val("spk_pct_5") }
+          ],
+
+          // Cultures
+          cultures: [
+            { culture: val("cult_1"), rating: val("cult_rate_1") },
+            { culture: val("cult_2"), rating: val("cult_rate_2") },
+            { culture: val("cult_3"), rating: val("cult_rate_3") },
+            { culture: val("cult_4"), rating: val("cult_rate_4") },
+            { culture: val("cult_5"), rating: val("cult_rate_5") }
+          ],
+
+          // Education
+          edu_years: val("edu_years"),
+          edu_level: getChecked("edu_level"),
+          edu_other_text: val("edu_other"),
+
+          // Immigration
+          immigration_usa_date: val("imm_usa"),
+          immigration_other: val("imm_other"),
+
+          // Disability
+          disability: {
+            vision: !!document.getElementById("dis_vision")?.checked,
+            hearing: !!document.getElementById("dis_hearing")?.checked,
+            language: !!document.getElementById("dis_language")?.checked,
+            learning: !!document.getElementById("dis_learning")?.checked,
+            none: !!document.getElementById("dis_none")?.checked,
+            explain: val("dis_explain")
+          },
+
+          // Language A block
+          langA: {
+            name: val("langA_name"),
+            age_acq: val("langA_age_acq"),
+            age_fluent: val("langA_age_fluent"),
+            age_read: val("langA_age_read"),
+            age_read_fluent: val("langA_age_read_fluent"),
+            env_country_y: val("langA_env_country_y"),
+            env_country_m: val("langA_env_country_m"),
+            env_family_y: val("langA_env_family_y"),
+            env_family_m: val("langA_env_family_m"),
+            env_school_y: val("langA_env_school_y"),
+            env_school_m: val("langA_env_school_m"),
+            prof_speak: val("langA_prof_speak"),
+            prof_under: val("langA_prof_under"),
+            prof_read: val("langA_prof_read"),
+            learn_friends: val("langA_learn_friends"),
+            learn_tapes: val("langA_learn_tapes"),
+            learn_family: val("langA_learn_family"),
+            learn_tv: val("langA_learn_tv"),
+            learn_reading: val("langA_learn_reading"),
+            learn_radio: val("langA_learn_radio"),
+            exp_friends: val("langA_exp_friends"),
+            exp_music: val("langA_exp_music"),
+            exp_family: val("langA_exp_family"),
+            exp_read: val("langA_exp_read"),
+            exp_tv: val("langA_exp_tv"),
+            exp_lab: val("langA_exp_lab"),
+            accent: val("langA_accent"),
+            non_native: val("langA_non_native")
+          },
+
+          // Language B block
+          langB: {
+            name: val("langB_name"),
+            age_acq: val("langB_age_acq"),
+            age_fluent: val("langB_age_fluent"),
+            age_read: val("langB_age_read"),
+            age_read_fluent: val("langB_age_read_fluent"),
+            env_country_y: val("langB_env_country_y"),
+            env_country_m: val("langB_env_country_m"),
+            env_family_y: val("langB_env_family_y"),
+            env_family_m: val("langB_env_family_m"),
+            env_school_y: val("langB_env_school_y"),
+            env_school_m: val("langB_env_school_m"),
+            prof_speak: val("langB_prof_speak"),
+            prof_under: val("langB_prof_under"),
+            prof_read: val("langB_prof_read"),
+            learn_friends: val("langB_learn_friends"),
+            learn_tapes: val("langB_learn_tapes"),
+            learn_family: val("langB_learn_family"),
+            learn_tv: val("langB_learn_tv"),
+            learn_reading: val("langB_learn_reading"),
+            learn_radio: val("langB_learn_radio"),
+            exp_friends: val("langB_exp_friends"),
+            exp_music: val("langB_exp_music"),
+            exp_family: val("langB_exp_family"),
+            exp_read: val("langB_exp_read"),
+            exp_tv: val("langB_exp_tv"),
+            exp_lab: val("langB_exp_lab"),
+            accent: val("langB_accent"),
+            non_native: val("langB_non_native")
+          }
+        };
+
+        // Set filename name = First_Last
+        const fn = (pi.first_name || "").trim();
+        const ln = (pi.last_name || "").trim();
+        participantName = (fn && ln) ? `${fn}_${ln}` : (fn || ln || "participant");
+
+        // Store the full participant info as properties (serialized)
+        // (jsPsych stores objects fine, but will show them as JSON in displayData)
+        jsPsych.data.addProperties({
+          participant_name: participantName,
+          leapq: pi
+        });
+      }
+    });
+
+    // ---------------------------------
+    // Start practice page
+    // ---------------------------------
+    timeline.push({
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <h2>Practice</h2>
+        <p>You will first complete a short practice block to get familiar with the task.</p>
+        <p>Please use headphones if possible.</p>
+      `,
+      choices: ["Start practice"]
+    });
+
+    // ---------------------------------
+    // Stimuli lists (EDIT THESE FILENAMES)
+    // ---------------------------------
+    const practiceStimuli = [
+      { id: "practice_001", audio: "audio/practice_001.wav" },
+      { id: "practice_002", audio: "audio/practice_002.wav" },
+      { id: "practice_003", audio: "audio/practice_003.wav" },
+      { id: "practice_004", audio: "audio/practice_004.wav" },
+      { id: "practice_005", audio: "audio/practice_005.wav" }
+    ];
+
+    const mainStimuli = [
+      { id: "main_001", audio: "audio/main_001.wav" },
+      { id: "main_002", audio: "audio/main_002.wav" },
+      { id: "main_003", audio: "audio/main_003.wav" }
+      // ... add more main trials here
+    ];
+
+    // ---------------------------------
+    // Helper: build ONE audio+slider trial + Replay button
+    // ---------------------------------
+    function makeRatingTrial(s, phaseLabel) {
+      let player = null;
+      let durationMs = null;
+      let clearTimer = null;
+
+      return {
+        type: jsPsychAudioSliderResponse,
+        stimulus: s.audio,
+
+        min: 1,
+        max: 5,
+        step: 1,
+        labels: ["1", "2", "3", "4", "5"],
+
+        response_allowed_while_playing: false,
+        require_movement: true,
+        button_label: "Next",
+
+        prompt: `
+          <div style="margin-top: 12px; margin-bottom: 10px;">
+            <button id="replay-btn" type="button">Replay 🔁</button>
+            <span id="replay-status" style="margin-left: 10px; font-size: 0.95em;"></span>
+          </div>
+
+          <p><b>How Persian-like does this word sound?</b></p>
+          <p>1 = impossible, 5 = perfectly normal</p>
+        `,
+
+        on_load: () => {
+          const replayBtn = document.getElementById("replay-btn");
+          const statusEl = document.getElementById("replay-status");
+
+          const setStatus = (txt) => {
+            if (statusEl) statusEl.textContent = txt || "";
+          };
+
+          jsPsych.pluginAPI.getAudioPlayer(s.audio).then((p) => {
+            player = p;
+            player.addEventListener("ended", () => {
+              if (clearTimer) clearTimeout(clearTimer);
+              setStatus("");
+            });
+          });
+
+          const metaAudio = new Audio(s.audio);
+          metaAudio.addEventListener("loadedmetadata", () => {
+            if (isFinite(metaAudio.duration)) {
+              durationMs = Math.max(0, Math.round(metaAudio.duration * 1000));
+            }
+          });
+          metaAudio.load();
+
+          replayBtn.addEventListener("click", () => {
+            if (!player) return;
+
+            if (clearTimer) clearTimeout(clearTimer);
+            setStatus("Playing...");
+
+            try {
+              player.stop();
+              player.play();
+            } catch (e) {
+              console.warn("Replay failed:", e);
+              setStatus("");
+              return;
+            }
+
+            if (durationMs != null) {
+              clearTimer = setTimeout(() => setStatus(""), durationMs + 150);
+            }
+          });
+        },
+
+        data: {
+          task: "rating",
+          phase: phaseLabel,
+          trial_id: s.id,
+          audio_file: s.audio
+        }
+      };
+    }
+
+    // Practice block (5 trials)
+    practiceStimuli.forEach((s) => timeline.push(makeRatingTrial(s, "practice")));
+
+    // Transition to main task
+    timeline.push({
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <h2>Main task</h2>
+        <p>Practice is finished. Press the button below to start the main task.</p>
+      `,
+      choices: ["Start main task"]
+    });
+
+    // Main block (randomized)
+    jsPsych.randomization.shuffle(mainStimuli).forEach((s) => {
+      timeline.push(makeRatingTrial(s, "main"));
+    });
+
+    // End page
+    timeline.push({
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <h2>Finished</h2>
+        <p>Thank you! You have completed the task.</p>
+        <p>Your results file will download automatically.</p>
+      `,
+      choices: ["Finish"]
+    });
+
+    jsPsych.run(timeline);
+  </script>
+</html>

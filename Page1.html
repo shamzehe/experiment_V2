@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Instructions Only</title>
+
+    <!-- jsPsych core + CSS -->
+    <script src="https://unpkg.com/jspsych@8.2.3"></script>
+    <link href="https://unpkg.com/jspsych@8.2.3/css/jspsych.css" rel="stylesheet" />
+
+    <!-- Instructions plugin -->
+    <script src="https://unpkg.com/@jspsych/plugin-instructions@2.1.0"></script>
+  </head>
+
+  <body></body>
+
+  <script>
+    const jsPsych = initJsPsych();
+
+    const timeline = [];
+
+    timeline.push({
+      type: jsPsychInstructions,
+      pages: [
+        `
+          <h2>Introduction</h2>
+          <p>You will hear a series of made-up Persian words, one at a time. These words do not exist in Persian.</p>
+          <p>Your task is to rate each word how Persian-like it is: how much it sounds like a normal Persian word that you simply never learned before.</p>
+          <p>There are no right or wrong answers. We want your honest opinion.</p>
+        `
+      ],
+      show_clickable_nav: true,
+      button_label_next: "Next",
+      button_label_previous: "Back"
+    });
+
+    jsPsych.run(timeline);
+  </script>
+</html>

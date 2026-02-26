@@ -1,0 +1,458 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Persian-likeness Rating Task</title>
+
+    <!-- jsPsych core + CSS -->
+    <script src="https://unpkg.com/jspsych@8.2.3"></script>
+    <link href="https://unpkg.com/jspsych@8.2.3/css/jspsych.css" rel="stylesheet" />
+
+    <!-- Plugins -->
+    <script src="https://unpkg.com/@jspsych/plugin-instructions@2.1.0"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-html-button-response@2.1.0"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-audio-slider-response@2.1.1"></script>
+  </head>
+
+  <body></body>
+
+  <script>
+    // ---------------------------------
+    // Helper: download a text file in the browser
+    // ---------------------------------
+    function downloadTextFile(filename, text) {
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    // Participant info (used for filename)
+    let participantName = "participant";
+
+    // ---------------------------------
+    // Initialize
+    // ---------------------------------
+    const jsPsych = initJsPsych({
+      use_webaudio: false,
+      on_finish: () => {
+        const rating = jsPsych.data.get().filter({ task: "rating" });
+
+        const header = ["name", "phase", "trial_id", "audio_file", "response", "rt"].join("\t");
+        const rows = rating.values().map((d) =>
+          [
+            participantName,
+            d.phase,
+            d.trial_id,
+            d.audio_file,
+            d.response,
+            d.rt
+          ].join("\t")
+        );
+
+        const textOut = [header, ...rows].join("\n");
+
+        const safeName = (participantName || "participant")
+          .trim()
+          .replace(/[\\/:*?"<>|]+/g, "_")
+          .replace(/\s+/g, "_");
+
+        downloadTextFile(`${safeName}.txt`, textOut);
+
+        // Optional debug
+        jsPsych.data.displayData();
+      }
+    });
+
+    const timeline = [];
+
+    // ---------------------------------
+    // Welcome + Participant Info + Instructions (Next/Back across all)
+    // ---------------------------------
+    timeline.push({
+      type: jsPsychInstructions,
+      pages: [
+        // Page 0: Thank you
+        `
+          <div style="max-width:720px; margin: 0 auto; text-align:left;">
+            <h2>Thank you for participating!</h2>
+            <p>In this study, you will listen to a series of made-up Persian words and rate how Persian-like they sound.</p>
+            <p>Please use headphones if possible and complete the task in a quiet environment.</p>
+            <p>Click <b>Next</b> to continue.</p>
+          </div>
+        `,
+
+        // Page 1: Participant information (styled like your screenshot)
+        `
+          <style>
+            .pi-wrap{
+              max-width: 520px;
+              margin: 0 auto;
+              text-align: center;
+            }
+            .pi-q{
+              margin: 14px 0 6px 0;
+              font-size: 16px;
+            }
+            .pi-input{
+              font-size: 16px;
+              padding: 6px 8px;
+              width: 160px;
+              box-sizing: border-box;
+            }
+            .pi-input-wide{
+              font-size: 16px;
+              padding: 6px 8px;
+              width: 260px;
+              max-width: 90%;
+              box-sizing: border-box;
+            }
+            .pi-radio{
+              display: inline-block;
+              text-align: left;
+              margin-top: 4px;
+              line-height: 1.7;
+            }
+            .pi-error{
+              color: #b00020;
+              margin-top: 12px;
+              display: none;
+              text-align: left;
+              font-size: 14px;
+            }
+          </style>
+
+          <div class="pi-wrap">
+            <h3 style="margin-bottom: 10px;">Participant Information</h3>
+
+            <div class="pi-q">What is your name?</div>
+            <input id="pi_name" class="pi-input-wide" type="text"
+                   data-required="true" data-label="Name"
+                   placeholder="Type your name" />
+
+            <div class="pi-q">What is your age?</div>
+            <input id="pi_age" class="pi-input" type="number" min="1" max="120"
+                   data-required="true" data-label="Age" />
+
+            <div class="pi-q">At what age did you begin acquiring English?</div>
+            <input id="pi_age" class="pi-input" type="number" min="1" max="120"
+                   data-required="true" data-label="Age" />
+
+            <div class="pi-q">At what age did you become fluent in speaking English?</div>
+            <input id="pi_age" class="pi-input" type="number" min="1" max="120"
+                   data-required="true" data-label="Age" />
+
+            <div class="pi-q">What is your gender?</div>
+            <div class="pi-radio" data-required-group="true" data-label="Gender">
+              <label><input type="radio" name="pi_gender" value="Male"> Male</label><br>
+              <label><input type="radio" name="pi_gender" value="Female"> Female</label><br>
+              <label><input type="radio" name="pi_gender" value="Other"> Other</label>
+            </div>
+
+            <div class="pi-q">How many years have you lived in China?</div>
+            <input id="pi_years_china" class="pi-input" type="number" min="0" max="120"
+                   data-required="true" data-label="Years lived in China" />
+
+            <div class="pi-q">Did you attend elementary school in China?</div>
+            <div class="pi-radio" data-required-group="true" data-label="Elementary school in China">
+              <label><input type="radio" name="pi_elem_china" value="Yes"> Yes</label><br>
+              <label><input type="radio" name="pi_elem_china" value="No"> No</label>
+            </div>
+
+            <div class="pi-q">What language do you primarily speak at home?</div>
+            <input id="pi_home_lang" class="pi-input-wide" type="text"
+                   data-required="true" data-label="Home language" />
+
+            <div class="pi-q">Please rate your proficiency in English:</div>
+            <div class="pi-radio" data-required-group="true" data-label="English proficiency">
+              <label><input type="radio" name="pi_eng_prof" value="Native"> Native</label><br>
+              <label><input type="radio" name="pi_eng_prof" value="Fluent"> Fluent</label><br>
+              <label><input type="radio" name="pi_eng_prof" value="Beginner"> Beginner</label><br>
+              <label><input type="radio" name="pi_eng_prof" value="None"> None</label>
+            </div>
+
+            <div class="pi-q">Please rate your proficiency in Mandarin:</div>
+            <div class="pi-radio" data-required-group="true" data-label="Mandarin proficiency">
+              <label><input type="radio" name="pi_man_prof" value="Native"> Native</label><br>
+              <label><input type="radio" name="pi_man_prof" value="Fluent"> Fluent</label><br>
+              <label><input type="radio" name="pi_man_prof" value="Beginner"> Beginner</label><br>
+              <label><input type="radio" name="pi_man_prof" value="None"> None</label>
+            </div>
+
+            <div id="pi_error" class="pi-error"></div>
+
+            <p style="margin-top:16px;">Click <b>Next</b> to continue.</p>
+          </div>
+        `,
+
+        // Page 2: Introduction
+        `
+          <div style="max-width:720px; margin: 0 auto; text-align:left;">
+            <h2>Introduction</h2>
+            <p>You will hear a series of made-up Persian words, one at a time. These words do not exist in Persian.</p>
+            <p>Your task is to rate each word how Persian-like it is: how much it sounds like a normal Persian word that you simply never learned before.</p>
+            <p>There are no right or wrong answers. We want your honest opinion.</p>
+          </div>
+        `,
+
+        // Page 3
+        `
+          <div style="max-width:720px; margin: 0 auto; text-align:left;">
+            <h2>What you will do</h2>
+            <p>There is a mini test task that helps you learn how to do the task before you move to the main task.</p>
+            <p>Focus on how the word sounds. Using the five labeled slider below, you will rate each word from <b>1</b> to <b>5</b>:</p>
+            <p><b>5</b>: perfectly good, normal-sounding Persian word<br>
+               <b>1</b>: awful or impossible-sounding Persian word</p>
+            <p>After you’ve rated the word, press <b>Next</b> to continue.</p>
+          </div>
+        `,
+
+        // Page 4
+        `
+          <div style="max-width:720px; margin: 0 auto; text-align:left;">
+            <h2>Things to keep in mind</h2>
+            <p>Focus on how Persian-like each word is, not whether it actually exists.</p>
+            <p>We monitor responses to make sure you are attentive, so there will be simple attention checks along the way.</p>
+          </div>
+        `
+      ],
+      show_clickable_nav: true,
+      allow_backward: true,
+      button_label_next: "Next",
+      button_label_previous: "Back",
+
+      // Validate participant info page (index 1) before allowing Next
+      on_load: () => {
+        const nextBtn = document.querySelector("#jspsych-instructions-next");
+        if (!nextBtn) return;
+
+        nextBtn.addEventListener(
+          "click",
+          (e) => {
+            const container = document.querySelector(".jspsych-instructions");
+            const pageIndex = container ? Number(container.getAttribute("data-current-page")) : null;
+
+            // Only validate on Participant Information page (page index 1)
+            if (pageIndex !== 1) return;
+
+            const err = document.getElementById("pi_error");
+            const missing = [];
+
+            // Required single fields (inputs/selects/textarea)
+            const requiredFields = Array.from(document.querySelectorAll('[data-required="true"]'));
+            for (const el of requiredFields) {
+              const label = el.getAttribute("data-label") || el.id || "This field";
+              const v = (el.value ?? "").toString().trim();
+              if (v === "") missing.push(label);
+            }
+
+            // Required radio groups (divs with data-required-group)
+            const requiredGroups = Array.from(document.querySelectorAll('[data-required-group="true"]'));
+            for (const g of requiredGroups) {
+              const label = g.getAttribute("data-label") || "A question";
+              // Find radio inputs inside this group and check if any is selected
+              const radios = Array.from(g.querySelectorAll('input[type="radio"]'));
+              const anyChecked = radios.some(r => r.checked);
+              if (!anyChecked) missing.push(label);
+            }
+
+            if (missing.length > 0) {
+              e.stopImmediatePropagation();
+              e.preventDefault();
+
+              if (err) {
+                err.style.display = "block";
+                err.innerHTML =
+                  `<b>Please answer all questions:</b><br>` +
+                  missing.map(m => `• ${m}`).join("<br>");
+              }
+
+              // Focus first missing control (best effort)
+              const firstMissingInput = requiredFields.find(el => ((el.value ?? "").toString().trim() === ""));
+              if (firstMissingInput) firstMissingInput.focus();
+
+              return;
+            } else {
+              if (err) err.style.display = "none";
+            }
+          },
+          true
+        );
+      },
+
+      // Save participant info when the instructions block finishes
+      on_finish: () => {
+        const getText = (id) => (document.getElementById(id)?.value || "").trim();
+        const getRadio = (name) => (document.querySelector(`input[name="${name}"]:checked`)?.value || "").trim();
+
+        const pi = {
+          participant_name: getText("pi_name") || "participant",
+          age: getText("pi_age"),
+          gender: getRadio("pi_gender"),
+          years_lived_china: getText("pi_years_china"),
+          elementary_school_china: getRadio("pi_elem_china"),
+          home_language: getText("pi_home_lang"),
+          english_proficiency: getRadio("pi_eng_prof"),
+          mandarin_proficiency: getRadio("pi_man_prof")
+        };
+
+        participantName = pi.participant_name;
+
+        // Store all participant info in jsPsych data for every trial
+        jsPsych.data.addProperties(pi);
+      }
+    });
+
+    // ---------------------------------
+    // Start practice page
+    // ---------------------------------
+    timeline.push({
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <h2>Practice</h2>
+        <p>You will first complete a short practice block to get familiar with the task.</p>
+        <p>Please use headphones if possible.</p>
+      `,
+      choices: ["Start practice"]
+    });
+
+    // ---------------------------------
+    // Stimuli lists (EDIT THESE FILENAMES)
+    // ---------------------------------
+    const practiceStimuli = [
+      { id: "practice_001", audio: "audio/practice_001.wav" },
+      { id: "practice_002", audio: "audio/practice_002.wav" },
+      { id: "practice_003", audio: "audio/practice_003.wav" },
+      { id: "practice_004", audio: "audio/practice_004.wav" },
+      { id: "practice_005", audio: "audio/practice_005.wav" }
+    ];
+
+    const mainStimuli = [
+      { id: "main_001", audio: "audio/main_001.wav" },
+      { id: "main_002", audio: "audio/main_002.wav" },
+      { id: "main_003", audio: "audio/main_003.wav" }
+      // ... add more main trials here
+    ];
+
+    // ---------------------------------
+    // Helper: build ONE audio+slider trial + Replay button
+    // ---------------------------------
+    function makeRatingTrial(s, phaseLabel) {
+      let player = null;
+      let durationMs = null;
+      let clearTimer = null;
+
+      return {
+        type: jsPsychAudioSliderResponse,
+        stimulus: s.audio,
+
+        min: 1,
+        max: 5,
+        step: 1,
+        labels: ["1", "2", "3", "4", "5"],
+
+        response_allowed_while_playing: false,
+        require_movement: true,
+        button_label: "Next",
+
+        prompt: `
+          <div style="margin-top: 12px; margin-bottom: 10px;">
+            <button id="replay-btn" type="button">Replay 🔁</button>
+            <span id="replay-status" style="margin-left: 10px; font-size: 0.95em;"></span>
+          </div>
+
+          <p><b>How Persian-like does this word sound?</b></p>
+          <p>1 = impossible, 5 = perfectly normal</p>
+        `,
+
+        on_load: () => {
+          const replayBtn = document.getElementById("replay-btn");
+          const statusEl = document.getElementById("replay-status");
+
+          const setStatus = (txt) => {
+            if (statusEl) statusEl.textContent = txt || "";
+          };
+
+          jsPsych.pluginAPI.getAudioPlayer(s.audio).then((p) => {
+            player = p;
+            player.addEventListener("ended", () => {
+              if (clearTimer) clearTimeout(clearTimer);
+              setStatus("");
+            });
+          });
+
+          const metaAudio = new Audio(s.audio);
+          metaAudio.addEventListener("loadedmetadata", () => {
+            if (isFinite(metaAudio.duration)) {
+              durationMs = Math.max(0, Math.round(metaAudio.duration * 1000));
+            }
+          });
+          metaAudio.load();
+
+          replayBtn.addEventListener("click", () => {
+            if (!player) return;
+
+            if (clearTimer) clearTimeout(clearTimer);
+            setStatus("Playing...");
+
+            try {
+              player.stop();
+              player.play();
+            } catch (e) {
+              console.warn("Replay failed:", e);
+              setStatus("");
+              return;
+            }
+
+            if (durationMs != null) {
+              clearTimer = setTimeout(() => setStatus(""), durationMs + 150);
+            }
+          });
+        },
+
+        data: {
+          task: "rating",
+          phase: phaseLabel,
+          trial_id: s.id,
+          audio_file: s.audio
+        }
+      };
+    }
+
+    // Practice block (5 trials)
+    practiceStimuli.forEach((s) => timeline.push(makeRatingTrial(s, "practice")));
+
+    // Transition to main task
+    timeline.push({
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <h2>Main task</h2>
+        <p>Practice is finished. Press the button below to start the main task.</p>
+      `,
+      choices: ["Start main task"]
+    });
+
+    // Main block (randomized)
+    jsPsych.randomization.shuffle(mainStimuli).forEach((s) => {
+      timeline.push(makeRatingTrial(s, "main"));
+    });
+
+    // End page
+    timeline.push({
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <h2>Finished</h2>
+        <p>Thank you! You have completed the task.</p>
+        <p>Your results file will download automatically.</p>
+      `,
+      choices: ["Finish"]
+    });
+
+    jsPsych.run(timeline);
+  </script>
+</html>
